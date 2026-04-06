@@ -4,6 +4,36 @@ Tüm önemli değişiklikler bu dosyada belgelenir.
 
 ---
 
+## [1.1.0] - 2026-04-06
+
+### 🔐 Kimlik Doğrulama ve Yetkilendirme
+
+#### Backend
+- `auth.py` eklendi: token tabanlı oturum yönetimi
+- `routes/auth_routes.py` eklendi: login, me, logout endpoint'leri
+- `routes/*` içinde yetki kontrolü eklendi
+- Kullanıcılar tablosu ve varsayılan kullanıcılar oluşturuldu
+
+#### Frontend
+- Giriş ekranı eklendi
+- Admin olmayan kullanıcılar için menü, rapor ve satış geçmişi gizlendi
+- API isteklerine Authorization header desteği eklendi
+
+### ☁️ Firebase Senkronizasyonu
+
+#### Backend
+- `firebase_client.py` eklendi: Firestore senkron katmanı
+- `routes/sync.py` eklendi: Firebase durum ve tam senkron endpoint'leri
+- Masa, ürün, sipariş ve satış değişiklikleri için Firestore push desteği eklendi
+- Açılışta isteğe bağlı tam senkronizasyon desteği eklendi
+
+#### Dağıtım
+- `run-dev.bat` Firebase geliştirme değişkenleri ile güncellendi
+- `backend/requirements.txt` içine `firebase-admin` eklendi
+
+### 📝 Dokümantasyon
+- `README.md` yeni giriş ve senkronizasyon akışını açıklayacak şekilde güncellendi
+
 ## [1.0.2] - 2026-02-22
 
 ### 🐛 Fiyat ve Miktar Bugları Düzeltildi

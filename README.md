@@ -1,7 +1,16 @@
 # ☕ Kafe POS - Offline Adisyon Sistemi
 
 Modern, kullanıcı dostu, internet gerektirmeyen kafe adisyon sistemi.  
-**Mevcut sürüm:** `v1.0.2` (fiyat düzeltmeleri ve menü iyileştirmeleri)
+**Mevcut sürüm:** `v1.1.0` (kimlik doğrulama, rol bazlı yetki ve opsiyonel Firebase senkronizasyonu)
+
+## 🆕 Son Değişiklikler
+
+- Giriş ekranı eklendi; uygulama artık login ile açılıyor.
+- Admin ve garson rolleri için yetkilendirme getirildi.
+- Menü, rapor ve satış geçmişi sayfaları admin yetkisine bağlandı.
+- Firebase Firestore için opsiyonel senkronizasyon katmanı eklendi.
+- Açılışta isteğe bağlı tam senkronizasyon desteği getirildi.
+- Varsayılan kullanıcılar: `admin/admin123` ve `garson/garson123`.
 
 ## 🎯 Özellikler
 
@@ -29,6 +38,17 @@ Modern, kullanıcı dostu, internet gerektirmeyen kafe adisyon sistemi.
 - Kart ödeme
 - Otomatik masa kapatma
 - Satış kaydı oluşturma
+
+### 🔐 Kimlik Doğrulama ve Yetki
+- Kullanıcı girişi
+- Token tabanlı oturum yönetimi
+- Admin / garson rol ayrımı
+- Sayfa ve API bazlı yetkilendirme
+
+### ☁️ Opsiyonel Firebase Senkronizasyonu
+- Masa, ürün, sipariş ve satış verilerini Firestore'a kopyalama
+- Event log kaydı
+- Başlangıçta tam senkron tetikleme desteği
 
 ### 📊 Raporlama
 - Günlük satış raporu
@@ -69,6 +89,7 @@ Modern, kullanıcı dostu, internet gerektirmeyen kafe adisyon sistemi.
 - Python 3.x
 - Flask 3.0
 - Flask-CORS
+- Firebase Admin SDK (opsiyonel)
 
 **Database:**
 - SQLite3 (local, offline)
@@ -193,6 +214,12 @@ npm run build:win
 
 ### 5. Geliştirme Modunda Çalıştırma
 
+Uygulama açıldığında giriş ekranı gelir. Giriş sonrası ana ekrana yönlenir.
+
+**Varsayılan kullanıcılar:**
+- `admin / admin123`
+- `garson / garson123`
+
 **Terminal 1 - Backend:**
 ```bash
 cd backend
@@ -240,6 +267,7 @@ npm start
 - Yeşil: Boş masa
 - Pembe: Dolu masa
 - Masaya tıklayarak aç/detaya git
+- Admin olmayan kullanıcılar menü, rapor ve satış geçmişi ekranlarını göremez
 
 ### Masa Detay
 - Sol: Menü (kategori filtreli)
