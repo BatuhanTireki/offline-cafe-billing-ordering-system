@@ -4,10 +4,13 @@ Raporlama API endpoint'leri
 from flask import Blueprint, jsonify, request
 from models import ReportModel
 from datetime import datetime
+from auth import require_auth, require_role
 
 reports_bp = Blueprint('reports', __name__)
 
 @reports_bp.route('/daily', methods=['GET'])
+@require_auth
+@require_role('admin')
 def get_daily_report():
     """Günlük rapor"""
     try:
@@ -18,6 +21,8 @@ def get_daily_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reports_bp.route('/range', methods=['GET'])
+@require_auth
+@require_role('admin')
 def get_range_report():
     """Tarih aralığı raporu"""
     try:

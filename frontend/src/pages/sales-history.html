@@ -311,7 +311,48 @@
         let backendReady = false;
         let initialized = false;
 
+        function getAuth() {
+            return JSON.parse(localStorage.getItem('auth') || 'null');
+        }
+
+        function requireAdmin() {
+            const auth = getAuth();
+            if (!auth || !auth.token || !auth.user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            if (auth.user.role !== 'admin') {
+                alert('Bu sayfa sadece admin kullanıcılar içindir.');
+                window.location.href = 'index.html';
+                return false;
+            }
+            return true;
+        }
+
+        function authHeaders(extra = {}) {
+            const auth = getAuth();
+            return Object.assign({}, extra, {
+                'Authorization': `Bearer ${auth.token}`
+            });
+        }
+
+        async function authFetch(url, options = {}) {
+            const merged = Object.assign({}, options);
+            merged.headers = authHeaders(options.headers || {});
+            const response = await fetch(url, merged);
+            if (response.status === 401) {
+                localStorage.removeItem('auth');
+                window.location.href = 'login.html';
+            }
+            if (response.status === 403) {
+                alert('Bu işlem için admin yetkisi gerekli.');
+                window.location.href = 'index.html';
+            }
+            return response;
+        }
+
         window.electronAPI.onBackendReady(async (data) => {
+            if (!requireAdmin()) return;
             if (initialized) return;
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
@@ -320,6 +361,7 @@
         });
 
         window.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAdmin()) return;
             if (initialized) return;
             try {
                 const port = await window.electronAPI.getBackendPort();
@@ -365,7 +407,7 @@
 
             try {
                 // Satışları çek
-                const response = await fetch(`${API_URL}/sales/history?start_date=${startDate}&end_date=${endDate}`);
+                const response = await authFetch(`${API_URL}/sales/history?start_date=${startDate}&end_date=${endDate}`);
                 const data = await response.json();
 
                 if (data.success) {
@@ -442,7 +484,7 @@
 
         async function showDetail(saleId) {
             try {
-                const response = await fetch(`${API_URL}/sales/${saleId}/details`);
+                const response = await authFetch(`${API_URL}/sales/${saleId}/details`);
                 const data = await response.json();
 
                 if (data.success) {

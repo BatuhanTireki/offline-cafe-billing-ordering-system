@@ -97,8 +97,8 @@ function createWindow() {
     
     mainWindow = new BrowserWindow(windowOptions);
 
-    // Ana sayfayı yükle
-    mainWindow.loadFile(path.join(__dirname, 'pages', 'index.html'));
+    // Giriş sayfasını yükle
+    mainWindow.loadFile(path.join(__dirname, 'pages', 'login.html'));
 
     // DevTools'u geliştirme modunda aç
     if (!app.isPackaged) {

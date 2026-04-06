@@ -301,6 +301,39 @@
         let selectedCategory = 'all';
         let backendReady = false;
         let initialized = false;
+        let currentUser = null;
+
+        function getAuth() {
+            return JSON.parse(localStorage.getItem('auth') || 'null');
+        }
+
+        function requireAuth() {
+            const auth = getAuth();
+            if (!auth || !auth.token || !auth.user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            currentUser = auth.user;
+            return true;
+        }
+
+        function authHeaders(extra = {}) {
+            const auth = getAuth();
+            return Object.assign({}, extra, {
+                'Authorization': `Bearer ${auth.token}`
+            });
+        }
+
+        async function authFetch(url, options = {}) {
+            const merged = Object.assign({}, options);
+            merged.headers = authHeaders(options.headers || {});
+            const response = await fetch(url, merged);
+            if (response.status === 401) {
+                localStorage.removeItem('auth');
+                window.location.href = 'login.html';
+            }
+            return response;
+        }
 
         // URL'den masa ID'sini al
         const urlParams = new URLSearchParams(window.location.search);
@@ -308,20 +341,28 @@
 
         // Backend hazır olduğunda
         window.electronAPI.onBackendReady(async (data) => {
+            if (!requireAuth()) return;
             if (initialized) return;
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
             initialized = true;
+            if (currentUser.role !== 'admin') {
+                document.querySelector('.payment-buttons').style.display = 'none';
+            }
             await init();
         });
 
         window.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAuth()) return;
             if (initialized) return;
             try {
                 const port = await window.electronAPI.getBackendPort();
                 API_URL = `http://127.0.0.1:${port}/api`;
                 backendReady = true;
                 initialized = true;
+                if (currentUser.role !== 'admin') {
+                    document.querySelector('.payment-buttons').style.display = 'none';
+                }
                 await init();
             } catch (error) {
                 console.log('Backend henüz hazır değil, bekleniyor...');
@@ -342,7 +383,7 @@
         // Ürünleri yükle
         async function loadProducts() {
             try {
-                const response = await fetch(`${API_URL}/menu/products`);
+                const response = await authFetch(`${API_URL}/menu/products`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -407,7 +448,7 @@
         // Masa bilgisini yükle
         async function loadTableInfo() {
             try {
-                const response = await fetch(`${API_URL}/tables/${tableId}`);
+                const response = await authFetch(`${API_URL}/tables/${tableId}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -423,7 +464,7 @@
         // Siparişleri yükle
         async function loadOrders() {
             try {
-                const response = await fetch(`${API_URL}/orders/table/${tableId}`);
+                const response = await authFetch(`${API_URL}/orders/table/${tableId}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -471,7 +512,7 @@
         // Ürün ekle
         async function addProduct(productId) {
             try {
-                const response = await fetch(`${API_URL}/orders/add`, {
+                const response = await authFetch(`${API_URL}/orders/add`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -508,7 +549,7 @@
         // Adet güncelle
         async function updateQuantity(orderId, newQty) {
             try {
-                const response = await fetch(`${API_URL}/orders/${orderId}/quantity`, {
+                const response = await authFetch(`${API_URL}/orders/${orderId}/quantity`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ quantity: newQty })
@@ -532,7 +573,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/orders/${orderId}`, {
+                const response = await authFetch(`${API_URL}/orders/${orderId}`, {
                     method: 'DELETE'
                 });
                 
@@ -547,6 +588,10 @@
 
         // Masayı kapat
         async function closeTable(paymentMethod) {
+            if (currentUser?.role !== 'admin') {
+                alert('Bu işlem için admin yetkisi gerekli.');
+                return;
+            }
             if (!currentTable || currentTable.total_amount === 0) {
                 alert('Adisyonda ürün bulunmuyor!');
                 return;
@@ -558,7 +603,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/tables/${tableId}/close`, {
+                const response = await authFetch(`${API_URL}/tables/${tableId}/close`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ payment_method: paymentMethod })

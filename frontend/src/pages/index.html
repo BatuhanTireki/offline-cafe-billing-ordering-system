@@ -166,9 +166,10 @@
     <div class="header">
         <h1>☕ Kafe POS Sistemi</h1>
         <div class="nav-buttons">
-            <button class="nav-btn menu" onclick="goToMenu()">📋 Menü Yönetimi</button>
-            <button class="nav-btn" style="background: #9f7aea; color: white;" onclick="goToHistory()">📜 Satış Geçmişi</button>
-            <button class="nav-btn reports" onclick="goToReports()">📊 Raporlar</button>
+            <button class="nav-btn menu" id="menuBtn" onclick="goToMenu()">📋 Menü Yönetimi</button>
+            <button class="nav-btn" id="historyBtn" style="background: #9f7aea; color: white;" onclick="goToHistory()">📜 Satış Geçmişi</button>
+            <button class="nav-btn reports" id="reportsBtn" onclick="goToReports()">📊 Raporlar</button>
+            <button class="nav-btn" style="background:#718096; color:white;" onclick="logout()">🚪 Çıkış</button>
         </div>
     </div>
 
@@ -198,9 +199,48 @@
         let API_URL = 'http://127.0.0.1:5000/api';
         let backendReady = false;
         let initialized = false;
+        let currentUser = null;
+
+        function getAuth() {
+            return JSON.parse(localStorage.getItem('auth') || 'null');
+        }
+
+        function requireAuth() {
+            const auth = getAuth();
+            if (!auth || !auth.token || !auth.user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            currentUser = auth.user;
+            return true;
+        }
+
+        function authHeaders(extra = {}) {
+            const auth = getAuth();
+            return Object.assign({}, extra, {
+                'Authorization': `Bearer ${auth.token}`
+            });
+        }
+
+        async function authFetch(url, options = {}) {
+            const merged = Object.assign({}, options);
+            merged.headers = authHeaders(options.headers || {});
+            const response = await fetch(url, merged);
+            if (response.status === 401) {
+                localStorage.removeItem('auth');
+                window.location.href = 'login.html';
+            }
+            return response;
+        }
 
         // Backend port'unu al
         window.electronAPI.onBackendReady((data) => {
+            if (!requireAuth()) return;
+            if (currentUser.role !== 'admin') {
+                document.getElementById('menuBtn').style.display = 'none';
+                document.getElementById('historyBtn').style.display = 'none';
+                document.getElementById('reportsBtn').style.display = 'none';
+            }
             if (initialized) return; // Zaten başlatıldıysa tekrar çalıştırma
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
@@ -210,6 +250,13 @@
 
         // Sayfa yüklendiğinde
         window.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAuth()) return;
+            // Garson için admin ekranlarını gizle
+            if (currentUser.role !== 'admin') {
+                document.getElementById('menuBtn').style.display = 'none';
+                document.getElementById('historyBtn').style.display = 'none';
+                document.getElementById('reportsBtn').style.display = 'none';
+            }
             if (initialized) return; // Zaten başlatıldıysa tekrar çalıştırma
             try {
                 const port = await window.electronAPI.getBackendPort();
@@ -230,7 +277,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/tables/`);
+                const response = await authFetch(`${API_URL}/tables/`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -270,10 +317,8 @@
         async function openTable(tableId, status) {
             if (status === 'empty') {
                 // Boş masayı aç
-                const response = await fetch(`${API_URL}/tables/${tableId}/open`, {
-                    method: 'POST'
-                });
-                const data = await response.json();
+                const authResponse = await authFetch(`${API_URL}/tables/${tableId}/open`, { method: 'POST' });
+                const data = await authResponse.json();
                 
                 if (data.success) {
                     goToTableDetail(tableId);
@@ -291,17 +336,25 @@
 
         // Menü yönetimine git
         function goToMenu() {
+            if (currentUser?.role !== 'admin') return;
             window.location.href = 'menu-management.html';
         }
 
         // Satış geçmişine git
         function goToHistory() {
+            if (currentUser?.role !== 'admin') return;
             window.location.href = 'sales-history.html';
         }
 
         // Raporlara git
         function goToReports() {
+            if (currentUser?.role !== 'admin') return;
             window.location.href = 'reports.html';
+        }
+
+        function logout() {
+            localStorage.removeItem('auth');
+            window.location.href = 'login.html';
         }
 
         // Her 5 saniyede bir masaları güncelle

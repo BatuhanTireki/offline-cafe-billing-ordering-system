@@ -3,10 +3,12 @@ Menü yönetimi API endpoint'leri
 """
 from flask import Blueprint, jsonify, request
 from models import MenuModel
+from auth import require_auth, require_role
 
 menu_bp = Blueprint('menu', __name__)
 
 @menu_bp.route('/categories', methods=['GET'])
+@require_auth
 def get_categories():
     """Tüm kategorileri getir"""
     try:
@@ -16,6 +18,8 @@ def get_categories():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @menu_bp.route('/categories', methods=['POST'])
+@require_auth
+@require_role('admin')
 def add_category():
     """Yeni kategori ekle"""
     try:
@@ -33,6 +37,7 @@ def add_category():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @menu_bp.route('/products', methods=['GET'])
+@require_auth
 def get_products():
     """Tüm ürünleri getir"""
     try:
@@ -54,6 +59,8 @@ def _parse_price(price_raw):
     return price, None
 
 @menu_bp.route('/products', methods=['POST'])
+@require_auth
+@require_role('admin')
 def add_product():
     """Yeni ürün ekle"""
     try:
@@ -75,6 +82,8 @@ def add_product():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @menu_bp.route('/products/<int:product_id>', methods=['PUT'])
+@require_auth
+@require_role('admin')
 def update_product(product_id):
     """Ürün güncelle"""
     try:
@@ -96,6 +105,8 @@ def update_product(product_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @menu_bp.route('/products/<int:product_id>', methods=['DELETE'])
+@require_auth
+@require_role('admin')
 def delete_product(product_id):
     """Ürünü sil"""
     try:

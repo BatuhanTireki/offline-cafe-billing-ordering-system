@@ -8,6 +8,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from werkzeug.security import generate_password_hash
 
 class Database:
     def __init__(self):
@@ -112,12 +113,25 @@ class Database:
                 FOREIGN KEY (sale_id) REFERENCES completed_sales(id)
             )
         """)
+
+        # 7. KULLANICILAR
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL,   -- admin / waiter
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         conn.commit()
         
         # İlk kurulumda masaları ve örnek verileri oluştur
         self._initialize_tables_if_needed(cursor, conn)
         self._initialize_sample_data_if_needed(cursor, conn)
+        self._initialize_users_if_needed(cursor, conn)
         
         conn.close()
     
@@ -174,6 +188,22 @@ class Database:
             
             conn.commit()
             print("✓ Örnek menü oluşturuldu")
+
+    def _initialize_users_if_needed(self, cursor, conn):
+        """Varsayılan kullanıcıları oluştur"""
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        if cursor.fetchone()['count'] == 0:
+            users = [
+                ("admin", "admin123", "admin"),
+                ("garson", "garson123", "waiter"),
+            ]
+            for username, raw_password, role in users:
+                cursor.execute("""
+                    INSERT INTO users (username, password_hash, role, is_active)
+                    VALUES (?, ?, ?, 1)
+                """, (username, generate_password_hash(raw_password), role))
+            conn.commit()
+            print("✓ Varsayılan kullanıcılar oluşturuldu (admin/garson)")
 
 # Global database instance
 db = Database()

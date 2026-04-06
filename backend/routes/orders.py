@@ -3,10 +3,12 @@ Sipariş yönetimi API endpoint'leri
 """
 from flask import Blueprint, jsonify, request
 from models import OrderModel
+from auth import require_auth
 
 orders_bp = Blueprint('orders', __name__)
 
 @orders_bp.route('/table/<int:table_id>', methods=['GET'])
+@require_auth
 def get_table_orders(table_id):
     """Masanın siparişlerini getir"""
     try:
@@ -28,6 +30,7 @@ def _parse_quantity(qty_raw, default=1):
     return q, None
 
 @orders_bp.route('/add', methods=['POST'])
+@require_auth
 def add_order():
     """Masaya ürün ekle"""
     try:
@@ -47,6 +50,7 @@ def add_order():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @orders_bp.route('/<int:order_id>/quantity', methods=['PUT'])
+@require_auth
 def update_quantity(order_id):
     """Sipariş adedini güncelle"""
     try:
@@ -61,6 +65,7 @@ def update_quantity(order_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @orders_bp.route('/<int:order_id>', methods=['DELETE'])
+@require_auth
 def delete_order(order_id):
     """Siparişi sil"""
     try:

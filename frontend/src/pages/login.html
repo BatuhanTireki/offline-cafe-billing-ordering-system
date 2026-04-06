@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş - Kafe POS</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { color: #4c51bf; margin-bottom: 6px; }
+        p { color: #718096; margin-bottom: 18px; }
+        .group { margin-bottom: 14px; }
+        label { display:block; margin-bottom: 6px; color:#2d3748; font-weight:600; }
+        input {
+            width:100%; padding:10px 12px; border:2px solid #e2e8f0;
+            border-radius:8px; font-size:14px; outline:none;
+        }
+        input:focus { border-color:#667eea; }
+        .btn {
+            width:100%; border:none; border-radius:10px; padding:12px;
+            color:white; background:#667eea; font-weight:700; cursor:pointer;
+        }
+        .btn:hover { background:#5568d3; }
+        .hint { margin-top: 12px; font-size: 13px; color: #718096; }
+        .err { margin-top: 10px; color:#c53030; min-height:18px; font-size:13px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>☕ Kafe POS</h1>
+        <p>Devam etmek için giriş yapın.</p>
+        <div class="group">
+            <label for="username">Kullanıcı Adı</label>
+            <input id="username" autocomplete="username" />
+        </div>
+        <div class="group">
+            <label for="password">Şifre</label>
+            <input id="password" type="password" autocomplete="current-password" />
+        </div>
+        <button class="btn" onclick="login()">Giriş Yap</button>
+        <div class="err" id="err"></div>
+        <div class="hint">
+            Varsayılan: <strong>admin/admin123</strong> veya <strong>garson/garson123</strong>
+        </div>
+    </div>
+    <script>
+        let API_URL = 'http://127.0.0.1:5000/api';
+        let initialized = false;
+
+        window.electronAPI.onBackendReady(async (data) => {
+            if (initialized) return;
+            API_URL = `http://127.0.0.1:${data.port}/api`;
+            initialized = true;
+            autoRedirectIfLoggedIn();
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (initialized) return;
+            try {
+                const port = await window.electronAPI.getBackendPort();
+                API_URL = `http://127.0.0.1:${port}/api`;
+            } catch (_) {}
+            initialized = true;
+            autoRedirectIfLoggedIn();
+        });
+
+        function autoRedirectIfLoggedIn() {
+            const auth = JSON.parse(localStorage.getItem('auth') || 'null');
+            if (auth && auth.token && auth.user) {
+                window.location.href = 'index.html';
+            }
+        }
+
+        async function login() {
+            document.getElementById('err').textContent = '';
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            if (!username || !password) {
+                document.getElementById('err').textContent = 'Kullanıcı adı ve şifre gerekli.';
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    document.getElementById('err').textContent = data.error || 'Giriş başarısız.';
+                    return;
+                }
+                localStorage.setItem('auth', JSON.stringify({
+                    token: data.token,
+                    user: data.user
+                }));
+                window.location.href = 'index.html';
+            } catch (e) {
+                document.getElementById('err').textContent = 'Bağlantı hatası.';
+            }
+        }
+    </script>
+</body>
+</html>

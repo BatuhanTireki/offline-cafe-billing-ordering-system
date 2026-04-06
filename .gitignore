@@ -39,3 +39,7 @@ desktop.ini
 
 # Build artifacts
 *.spec.backup
+
+# Firebase secrets
+backend/firebase-service-account.json
+**/*service-account*.json

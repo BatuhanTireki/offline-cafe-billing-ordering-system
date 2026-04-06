@@ -291,8 +291,51 @@
         let products = [];
         let backendReady = false;
         let initialized = false;
+        let currentUser = null;
+
+        function getAuth() {
+            return JSON.parse(localStorage.getItem('auth') || 'null');
+        }
+
+        function requireAdmin() {
+            const auth = getAuth();
+            if (!auth || !auth.token || !auth.user) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            if (auth.user.role !== 'admin') {
+                alert('Bu sayfa sadece admin kullanıcılar içindir.');
+                window.location.href = 'index.html';
+                return false;
+            }
+            currentUser = auth.user;
+            return true;
+        }
+
+        function authHeaders(extra = {}) {
+            const auth = getAuth();
+            return Object.assign({}, extra, {
+                'Authorization': `Bearer ${auth.token}`
+            });
+        }
+
+        async function authFetch(url, options = {}) {
+            const merged = Object.assign({}, options);
+            merged.headers = authHeaders(options.headers || {});
+            const response = await fetch(url, merged);
+            if (response.status === 401) {
+                localStorage.removeItem('auth');
+                window.location.href = 'login.html';
+            }
+            if (response.status === 403) {
+                alert('Bu işlem için admin yetkisi gerekli.');
+                window.location.href = 'index.html';
+            }
+            return response;
+        }
 
         window.electronAPI.onBackendReady(async (data) => {
+            if (!requireAdmin()) return;
             if (initialized) return;
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
@@ -301,6 +344,7 @@
         });
 
         window.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAdmin()) return;
             if (initialized) return;
             try {
                 const port = await window.electronAPI.getBackendPort();
@@ -325,7 +369,7 @@
         // Kategorileri yükle
         async function loadCategories() {
             try {
-                const response = await fetch(`${API_URL}/menu/categories`);
+                const response = await authFetch(`${API_URL}/menu/categories`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -348,7 +392,7 @@
         // Ürünleri yükle
         async function loadProducts() {
             try {
-                const response = await fetch(`${API_URL}/menu/products`);
+                const response = await authFetch(`${API_URL}/menu/products`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -415,7 +459,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/menu/products`, {
+                const response = await authFetch(`${API_URL}/menu/products`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -483,7 +527,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/menu/products/${editingProductId}`, {
+                const response = await authFetch(`${API_URL}/menu/products/${editingProductId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -518,7 +562,7 @@
             }
 
             try {
-                const response = await fetch(`${API_URL}/menu/products/${productId}`, {
+                const response = await authFetch(`${API_URL}/menu/products/${productId}`, {
                     method: 'DELETE'
                 });
 

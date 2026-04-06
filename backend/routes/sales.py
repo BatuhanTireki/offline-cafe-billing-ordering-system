@@ -3,10 +3,13 @@ Satış geçmişi API endpoint'leri
 """
 from flask import Blueprint, jsonify, request
 from database import db
+from auth import require_auth, require_role
 
 sales_bp = Blueprint('sales', __name__)
 
 @sales_bp.route('/history', methods=['GET'])
+@require_auth
+@require_role('admin')
 def get_sales_history():
     """Tarih aralığına göre satış geçmişi"""
     try:
@@ -41,6 +44,8 @@ def get_sales_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @sales_bp.route('/<int:sale_id>/details', methods=['GET'])
+@require_auth
+@require_role('admin')
 def get_sale_details(sale_id):
     """Tek satışın detayları"""
     try:

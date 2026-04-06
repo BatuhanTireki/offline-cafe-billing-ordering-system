@@ -10,6 +10,8 @@ import os
 
 # Route'ları import et
 from routes import register_routes
+from firebase_client import get_sync_status, full_sync_from_sqlite
+from database import db
 
 def create_app():
     """Flask uygulamasını oluştur ve yapılandır"""
@@ -31,6 +33,11 @@ def create_app():
     def health():
         """Health check endpoint"""
         return jsonify({'status': 'healthy'})
+
+    @app.route('/firebase-health')
+    def firebase_health():
+        """Firebase bağlantı durumunu göster (debug)."""
+        return jsonify({'success': True, 'data': get_sync_status()})
     
     # Route'ları kaydet
     register_routes(app)
@@ -58,6 +65,12 @@ if __name__ == '__main__':
         sys.exit(1)
     
     print(f"Flask sunucusu başlatılıyor - Port: {port}")
+    print(f"[firebase] startup status: {get_sync_status()}")
+
+    # İsteğe bağlı: uygulama açılışında full sync
+    if os.getenv("FIREBASE_FULL_SYNC_ON_START", "false").lower() == "true":
+        result = full_sync_from_sqlite(db.get_connection)
+        print(f"[firebase] startup full sync sonucu: {result}")
     
     app = create_app()
     
