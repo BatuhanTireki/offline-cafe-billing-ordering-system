@@ -1,159 +1,143 @@
-# 📁 PROJE YAPISI
+# Proje Yapisi (Guncel)
+
+Bu dosya, kodun mevcut haliyle birebir uyumlu proje yapisi ve API ozetini verir.
+
+## Klasor Agaci
 
 ```
 cafe-pos/
-│
-├── 📄 README.md                    # Detaylı proje dokümantasyonu
-├── 📄 QUICKSTART.md               # Hızlı başlangıç kılavuzu
-├── 📄 .gitignore                  # Git ignore kuralları
-├── 🔨 build.bat                   # Otomatik build scripti (WINDOWS)
-├── 🔨 run-dev.bat                 # Geliştirme modu başlatıcı
-│
-├── 📂 backend/                    # Python Flask Backend
-│   ├── 📄 app.py                  # Ana Flask uygulaması
-│   ├── 📄 database.py             # Veritabanı yönetimi
-│   ├── 📄 models.py               # İş mantığı katmanı
-│   ├── 📄 requirements.txt        # Python bağımlılıkları
-│   ├── 📄 build_backend.spec      # PyInstaller yapılandırması
-│   │
-│   ├── 📂 routes/                 # API Endpoint'leri
-│   │   ├── __init__.py            # Route kaydedici
-│   │   ├── tables.py              # Masa API'leri
-│   │   ├── menu.py                # Menü API'leri
-│   │   ├── orders.py              # Sipariş API'leri
-│   │   └── reports.py             # Rapor API'leri
-│   │
-│   └── 📂 data/                   # Veritabanı klasörü (otomatik oluşur)
-│       └── cafe.db                # SQLite veritabanı
-│
-└── 📂 frontend/                   # Electron Frontend
-    ├── 📄 package.json            # Node.js yapılandırması
-    │
-    ├── 📂 src/
-    │   ├── 📄 main.js             # Electron ana process
-    │   ├── 📄 preload.js          # Güvenli IPC köprüsü
-    │   │
-    │   └── 📂 pages/              # HTML Sayfaları
-    │       ├── index.html         # Ana ekran (40 masa)
-    │       ├── table.html         # Masa detay & sipariş
-    │       ├── menu-management.html  # Menü yönetimi
-    │       └── reports.html       # Satış raporları
-    │
-    └── 📂 assets/                 # Görseller, ikonlar
-        └── icon.png
-
+├── README.md
+├── QUICKSTART.md
+├── PROJECT_STRUCTURE.md
+├── BUILD_INSTRUCTIONS.md
+├── SETUP_GUIDE.md
+├── build.bat
+├── run-dev.bat
+├── test-backend.bat
+├── backend/
+│   ├── app.py
+│   ├── auth.py
+│   ├── database.py
+│   ├── firebase_client.py
+│   ├── models.py
+│   ├── requirements.txt
+│   ├── build_backend.spec
+│   ├── firebase-service-account.json
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── auth_routes.py
+│   │   ├── menu.py
+│   │   ├── orders.py
+│   │   ├── reports.py
+│   │   ├── sales.py
+│   │   ├── sync.py
+│   │   └── tables.py
+│   └── data/
+│       └── cafe.db
+└── frontend/
+    ├── package.json
+    ├── assets/
+    ├── backend/
+    └── src/
+        ├── main.js
+        ├── preload.js
+        └── pages/
+            ├── index.html
+            ├── login.html
+            ├── menu-management.html
+            ├── reports.html
+            ├── sales-history.html
+            └── table.html
 ```
 
-## 🔄 Veri Akışı
+## Mimari
 
-```
-[Kullanıcı Arayüzü]
-         ↓
-   [Electron UI]
-         ↓
-    HTTP Request
-         ↓
-   [Flask API]
-         ↓
-   [Model Layer]
-         ↓
-  [SQLite Database]
-```
+1. Electron main process, backend Flask surecini baslatir.
+2. Frontend sayfalari localhost API'ye HTTP ile baglanir.
+3. Is kurallari backend models katmaninda calisir.
+4. Ana veri kaynagi SQLite'tir.
+5. Firebase etkinse degisiklikler Firestore'a da senkronlanir.
 
-## 📊 API Endpoint'leri
+## Backend Modulleri
 
-### Masalar
-- `GET    /api/tables/` - Tüm masalar
-- `GET    /api/tables/:id` - Tek masa
-- `POST   /api/tables/:id/open` - Masa aç
-- `POST   /api/tables/:id/close` - Masa kapat
+- app.py: Flask uygulamasi, health endpointleri, route kaydi, bos port bulma
+- auth.py: token tabanli kimlik dogrulama ve rol kontrolu
+- database.py: tablo olusturma, seed veriler, varsayilan kullanicilar
+- models.py: masa, siparis, menu, rapor is kurallari
+- firebase_client.py: opsiyonel Firestore push ve full sync islemleri
 
-### Menü
-- `GET    /api/menu/categories` - Kategoriler
-- `POST   /api/menu/categories` - Kategori ekle
-- `GET    /api/menu/products` - Ürünler
-- `POST   /api/menu/products` - Ürün ekle
-- `PUT    /api/menu/products/:id` - Ürün güncelle
-- `DELETE /api/menu/products/:id` - Ürün sil
+## Frontend Sayfalari
 
-### Siparişler
-- `GET    /api/orders/table/:id` - Masa siparişleri
-- `POST   /api/orders/add` - Sipariş ekle
-- `PUT    /api/orders/:id/quantity` - Adet güncelle
-- `DELETE /api/orders/:id` - Sipariş sil
+- login.html: giris ekrani
+- index.html: masa grid ekrani
+- table.html: masa detay ve adisyon
+- menu-management.html: urun/kategori yonetimi (admin)
+- reports.html: gunluk raporlar (admin)
+- sales-history.html: satis gecmisi ve detay (admin)
 
-### Raporlar
-- `GET    /api/reports/daily?date=YYYY-MM-DD` - Günlük rapor
-- `GET    /api/reports/range?start_date=...&end_date=...` - Aralık raporu
+## API Endpoint Ozeti
 
-## 🗂️ Veritabanı Tabloları
+### Auth
+- POST /api/auth/login
+- GET /api/auth/me
+- POST /api/auth/logout
 
-1. **tables** - 40 masa bilgisi
-2. **categories** - Ürün kategorileri
-3. **products** - Menü ürünleri
-4. **active_orders** - Masalardaki aktif siparişler
-5. **completed_sales** - Tamamlanmış satışlar
-6. **sale_details** - Satış detayları
+### Tables
+- GET /api/tables/
+- GET /api/tables/:id
+- POST /api/tables/:id/open
+- POST /api/tables/:id/close (admin)
 
-## 🎨 UI Ekranları
+### Menu
+- GET /api/menu/categories
+- POST /api/menu/categories (admin)
+- GET /api/menu/products
+- POST /api/menu/products (admin)
+- PUT /api/menu/products/:id (admin)
+- DELETE /api/menu/products/:id (admin)
 
-### 1. Ana Ekran (index.html)
-- 40 masanın grid görünümü
-- Renk kodlu durum gösterimi
-- Menü yönetimi linki
-- Raporlar linki
+### Orders
+- GET /api/orders/table/:id
+- POST /api/orders/add
+- PUT /api/orders/:id/quantity
+- DELETE /api/orders/:id
 
-### 2. Masa Detay (table.html)
-- Sol panel: Kategori filtreli menü
-- Sağ panel: Adisyon listesi
-- Adet kontrolü (+/-)
-- Ürün silme
-- Nakit/Kart ödeme
+### Reports
+- GET /api/reports/daily?date=YYYY-MM-DD (admin)
+- GET /api/reports/range?start_date=...&end_date=... (admin)
 
-### 3. Menü Yönetimi (menu-management.html)
-- Ürün ekleme formu
-- Ürün listesi tablosu
-- Düzenleme/Silme işlemleri
+### Sales
+- GET /api/sales/history?start_date=...&end_date=... (admin)
+- GET /api/sales/:id/details (admin)
 
-### 4. Raporlar (reports.html)
-- Tarih seçici
-- Özet kartları (satış, ciro, nakit, kart)
-- Ürün bazlı tablo
-- Kategori bazlı tablo
+### Firebase Sync
+- GET /api/sync/firebase/status (admin)
+- POST /api/sync/firebase/full (admin)
+- GET /firebase-health (debug)
 
-## 🔐 Güvenlik
+## Veritabani Tablolari
 
-- ✅ Context isolation aktif
-- ✅ Node integration kapalı
-- ✅ Preload script ile güvenli IPC
-- ✅ SQL injection koruması (parameterized queries)
-- ✅ Local-only backend (127.0.0.1)
-- ✅ CORS sadece local origin
+1. tables
+2. categories
+3. products
+4. active_orders
+5. completed_sales
+6. sale_details
+7. users
 
-## 🚀 Build Süreci
+## Yetkilendirme Ozeti
 
-1. **Backend Build:**
-   ```
-   PyInstaller → cafe_backend.exe
-   ```
+- waiter: masa ve siparis islemleri
+- admin: tum waiter yetkileri + menu, rapor, satis gecmisi, masa kapatma, sync
 
-2. **Frontend Build:**
-   ```
-   electron-builder → Kafe POS Setup.exe
-   (Backend exe'yi içine gömer)
-   ```
+## Guvenlik Notlari
 
-3. **Final Package:**
-   ```
-   Setup.exe → Install → Desktop Shortcut
-   ```
+- Electron: context isolation acik, nodeIntegration kapali
+- Backend: localhost baglantisi, parametreli SQL sorgulari
+- CORS: /api/* icin acik (origins: *)
 
-## 📦 Deployment Checklist
+## Build Ozeti
 
-- [x] Backend exe test edildi
-- [x] Frontend standalone çalışıyor
-- [x] Veritabanı otomatik oluşuyor
-- [x] Port çakışması kontrolü var
-- [x] Hata yönetimi implementasyonu
-- [x] Kullanıcı dokümantasyonu hazır
-- [x] Build script'leri çalışıyor
+1. backend exe: pyinstaller build_backend.spec
+2. frontend installer: npm run build:win
+3. electron-builder, backend exe'yi extraResources ile pakete dahil eder

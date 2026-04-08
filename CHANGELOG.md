@@ -4,6 +4,29 @@ Tüm önemli değişiklikler bu dosyada belgelenir.
 
 ---
 
+## [1.1.1] - 2026-04-08
+
+### 📝 Release Notes - Dokumantasyon ve GitHub Aciklamasi Guncellemesi
+
+#### Guncellenen Dokumanlar
+- `README.md` tamamen yenilendi ve mevcut mimari/akis ile hizalandi
+- `QUICKSTART.md` sade ve guncel kurulum adimlariyla duzenlendi
+- `PROJECT_STRUCTURE.md` gercek dosya yapisi ve endpoint ozetiyle guncellendi
+- `SETUP_GUIDE.md` yeniden yazilarak auth, rol ve Firebase akisi eklendi
+- `BUILD_INSTRUCTIONS.md` build sureci scriptlerle birebir uyumlu hale getirildi
+- `FINAL_REPORT.md` eski kapanis raporu formatindan cikarilip mevcut durumu ozetleyecek sekilde yenilendi
+
+#### Icerik Duzeltmeleri
+- API gruplari `/api/sales` ve `/api/sync` dahil olacak sekilde tamamlandi
+- Auth/rol modeli (`admin`, `waiter`) tum ana dokumanlarda netlestirildi
+- Firebase ortam degiskenleri ve opsiyonel calisma modeli dokumante edildi
+- CORS notu backend implementasyonuyla uyumlu hale getirildi (`/api/*` icin `origins: *`)
+
+#### Sonuc
+- GitHub uzerindeki proje aciklamasi/dokumantasyon artik kod tabaninin mevcut halini yansitir durumda
+
+---
+
 ## [1.1.0] - 2026-04-06
 
 ### 🔐 Kimlik Doğrulama ve Yetkilendirme

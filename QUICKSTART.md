@@ -1,149 +1,91 @@
-# 🚀 HIZLI BAŞLANGIÇ KILAVUZU
+# Hizli Baslangic (Guncel)
 
-## Windows için Tek Tıkla EXE Oluşturma
+Bu rehber, mevcut kod yapisina gore hizli kurulum ve calistirma adimlarini anlatir.
 
-### Gereksinimler
-1. Python 3.8+ kurulu olmalı
-2. Node.js 16+ kurulu olmalı
-3. Git kurulu olmalı (opsiyonel)
+## Gereksinimler
 
----
+1. Python 3.8+
+2. Node.js 16+
+3. Windows 10/11
 
-## ADIM 1: Projeyi İndirin
+## 1) Tek Komutla Build
 
-```bash
-# Git ile (önerilir)
-git clone <repository-url>
-cd cafe-pos
+build.bat dosyasini calistir.
 
-# VEYA ZIP indir ve çıkar
-```
+Script otomatik olarak:
+- backend bagimliliklarini kurar
+- backend exe olusturur
+- frontend bagimliliklarini kurar
+- Windows installer olusturur
 
----
+Beklenen cikti:
+- frontend/dist/Kafe POS Setup.exe
 
-## ADIM 2: Tek Komutla Build
+## 2) Uygulamayi Ac
 
-**build.bat dosyasına çift tıklayın!**
+1. frontend/dist/Kafe POS Setup.exe calistir
+2. kurulumu tamamla
+3. uygulamayi ac
 
-Bu dosya otomatik olarak:
-✅ Backend bağımlılıklarını yükler
-✅ Backend exe'yi oluşturur
-✅ Frontend bağımlılıklarını yükler
-✅ Frontend installer'ı oluşturur
+Ilk acilista login ekrani gelir.
 
-**Süre:** ~5-10 dakika
+Varsayilan kullanicilar:
+- admin / admin123
+- garson / garson123
 
----
+## 3) Gelistirme Modu
 
-## ADIM 3: Uygulamayı Çalıştırın
+run-dev.bat dosyasini calistir.
 
-Build tamamlandıktan sonra:
+Bu script:
+- Firebase gelistirme ortam degiskenlerini set eder
+- backend'i Python ile baslatir
+- frontend'i npm start ile acar
 
-1. `frontend/dist/Kafe POS Setup.exe` dosyasını çalıştırın
-2. Kurulum sihirbazını takip edin
-3. Masaüstü kısayolu oluşturulur
-4. Programı başlatın!
+Not: Firebase dosyasi yoksa backend calismaya devam eder, sync no-op olur.
 
----
+## Opsiyonel Firebase Ayari
 
-## Geliştirme Modu
+Backend firebase_client.py su degiskenleri kullanir:
+- FIREBASE_ENABLED=true|false
+- FIREBASE_CREDENTIALS_PATH=service account json yolu
+- FIREBASE_BRANCH_ID=default
+- FIREBASE_FULL_SYNC_ON_START=true|false
 
-Test ve geliştirme için:
+run-dev.bat bu degiskenleri otomatik set eder.
 
-**run-dev.bat dosyasına çift tıklayın!**
+## Rol ve Yetki Ozeti
 
-Bu mod:
-- Backend'i Python ile çalıştırır
-- Frontend'i development modda açar
-- DevTools açık gelir
-- Hot reload aktif
+- garson: masa/siparis islemleri
+- admin: menu yonetimi, raporlar, satis gecmisi, masa kapatma, firebase sync
 
----
+## Satis ve Rapor Ekranlari
 
-## Manuel Build (İleri Seviye)
-
-### Backend EXE
-
-```bash
-cd backend
-pip install -r requirements.txt
-pyinstaller build_backend.spec
-```
-
-Çıktı: `backend/dist/cafe_backend.exe`
-
-### Frontend Installer
-
-```bash
-cd frontend
-npm install
-npm run build:win
-```
-
-Çıktı: `frontend/dist/Kafe POS Setup.exe`
-
----
+- Satis Gecmisi: tarih araligina gore listeler, detay modal acilir
+- Raporlar: gunluk ozet, urun bazli ve kategori bazli dagilim
 
 ## Sorun Giderme
 
-### "Python bulunamadı" hatası
-- Python'u PATH'e ekleyin
-- VEYA komut satırında: `python --version`
+Python bulunamadi:
+- python --version ile kontrol et
+- Python PATH'e ekli olmasi gerekir
 
-### "npm tanınmıyor" hatası
-- Node.js'i yeniden kurun
-- "Add to PATH" seçeneğini işaretleyin
+npm bulunamadi:
+- node --version ve npm --version ile kontrol et
+- Node.js yeniden kur
 
-### Build başarısız
-1. Tüm terminalleri kapatın
-2. `backend/dist` ve `frontend/dist` klasörlerini silin
-3. `build.bat`'ı yeniden çalıştırın
+Build basarisiz:
+1. backend/dist ve frontend/dist klasorlerini temizle
+2. build.bat'i tekrar calistir
 
----
+Backend baglanti hatasi:
+- backend otomatik bos port bulur (5000+)
+- backend loglarini kontrol et
 
-## Kullanım Akışı
+## Hizli Kullanim Akisi
 
-1. **İlk Açılış**
-   - Program otomatik veritabanı oluşturur
-   - 40 masa ve örnek menü hazır gelir
-
-2. **Masa Açma**
-   - Yeşil (boş) masaya tıklayın
-   - Masa otomatik "dolu" olur
-
-3. **Sipariş Verme**
-   - Sol panelden ürünlere tıklayın
-   - Sağ panelde sipariş görünür
-   - +/- ile adet değiştirin
-
-4. **Ödeme Alma**
-   - "Nakit" veya "Kart" butonuna tıklayın
-   - Masa otomatik kapanır
-   - Satış kaydedilir
-
-5. **Raporlama**
-   - Ana ekrandan "Raporlar"a gidin
-   - Tarih seçin
-   - Detaylı rapor görün
-
----
-
-## İlk Kullanım İpuçları
-
-✅ Menü Yönetimi'nden kendi ürünlerinizi ekleyin
-✅ Kategori bazlı organize edin
-✅ Fiyatları düzenli güncelleyin
-✅ Her gün sonunda rapor alın
-✅ Veritabanını düzenli yedekleyin (`backend/data/cafe.db`)
-
----
-
-## Destek
-
-📧 E-posta: support@cafepos.com
-📚 Dokümantasyon: README.md
-🐛 Hata bildirimi: GitHub Issues
-
----
-
-**Başarılar!** ☕
+1. Login ol
+2. Bos masa ac
+3. Urun ekle/sil, adet guncelle
+4. Admin ile odeme al ve masa kapat
+5. Rapor/Satis gecmisi ekranlarini kullan
