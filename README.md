@@ -1,6 +1,6 @@
 # Kafe POS
 
-Offline-first cafe adisyon ve masa yonetim sistemi.
+Cafe adisyon ve masa yonetim sistemi.
 
 Bu proje, Electron tabanli masaustu arayuz ile Flask REST API backend'ini birlestirir. Ana veri kaynagi SQLite'tir. Ihtiyaca gore Firebase Firestore senkronizasyonu da devreye alinabilir.
 
