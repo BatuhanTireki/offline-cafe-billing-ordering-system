@@ -1,109 +1,220 @@
 # Kafe POS
 
-Guncel masa yonetimi, adisyon, raporlama ve opsiyonel Firebase senkronizasyonu iceren Electron + Flask tabanli cafe POS uygulamasi.
+Offline-first cafe adisyon ve masa yonetim sistemi.
 
-## Ozet
+Bu proje, Electron tabanli masaustu arayuz ile Flask REST API backend'ini birlestirir. Ana veri kaynagi SQLite'tir. Ihtiyaca gore Firebase Firestore senkronizasyonu da devreye alinabilir.
 
-- Frontend: Electron + HTML/CSS/JS
-- Backend: Flask REST API
-- Veritabani: SQLite (ana kaynak)
-- Opsiyonel senkron: Firebase Firestore
-- Kimlik dogrulama: token tabanli session
-- Roller: admin, waiter
+## Neler Sunuyor?
 
-## Temel Ozellikler
+- 40 masa icin hizli operasyon akisi (empty/open/occupied)
+- Masa bazli adisyon yonetimi
+- Urun ekleme, silme, adet guncelleme
+- Nakit/Kart odeme ile masa kapatma
+- Gunluk satis raporlari ve satis gecmisi
+- Rol bazli yetkilendirme (admin/waiter)
+- Opsiyonel Firebase senkron katmani
 
-- 40 masa (empty/open/occupied durumlari)
-- urun ekleme/silme, adet guncelleme
-- menu yonetimi (admin)
-- masa kapatma ve odeme (admin)
-- gunluk raporlar (admin)
-- satis gecmisi ve satis detay modal'i (admin)
-- Firebase event ve veri senkronu (opsiyonel)
+## Teknik Mimari
 
-## Hemen Basla
+1. Electron renderer, localhost uzerinden Flask API'ye istek atar.
+2. Flask, is kurallarini models katmaninda calistirir.
+3. Kalici veriler SQLite'a yazilir.
+4. Firebase etkinse degisiklikler Firestore'a da gonderilir.
 
-### Gelistirme
+Teknoloji yiginlari:
 
-1. backend bagimliliklari:
+- Frontend: Electron, HTML, CSS, JavaScript
+- Backend: Python, Flask, Flask-CORS
+- Veritabani: SQLite
+- Opsiyonel bulut katmani: Firebase Admin SDK
+- Paketleme: PyInstaller + electron-builder
 
-   cd backend
-   pip install -r requirements.txt
+## Roller ve Yetkiler
 
-2. frontend bagimliliklari:
+- waiter:
+   - masa acma
+   - siparis ekleme/guncelleme/silme
+   - masa durumlarini goruntuleme
+- admin:
+   - waiter tum yetkileri
+   - menu yonetimi
+   - raporlar ve satis gecmisi
+   - masa kapatma/odeme
+   - Firebase sync endpointleri
 
-   cd ../frontend
-   npm install
-
-3. uygulamayi ac:
-
-   npm start
-
-Alternatif: proje kokunden run-dev.bat calistir.
-
-### Build
-
-Tek adim: proje kokunden build.bat calistir.
-
-Beklenen cikti:
-- frontend/dist/Kafe POS Setup.exe
-
-## Varsayilan Kullanici Bilgileri
+Varsayilan kullanicilar:
 
 - admin / admin123
 - garson / garson123
 
-## Firebase (Opsiyonel)
+## Ekranlar
 
-Firebase kapali olsa da uygulama normal calisir.
+- login: giris ekrani
+- index: masa grid ekrani
+- table: masa detay/adisyon ekrani
+- menu-management: urun ve kategori yonetimi (admin)
+- reports: gunluk raporlama (admin)
+- sales-history: tarih aralikli satis gecmisi ve detay (admin)
 
-Kullanilan ortam degiskenleri:
-- FIREBASE_ENABLED=true|false
-- FIREBASE_CREDENTIALS_PATH=service account json yolu
-- FIREBASE_BRANCH_ID=default
-- FIREBASE_FULL_SYNC_ON_START=true|false
+## API Ozeti
 
-Not: run-dev.bat bu degiskenleri gelistirme icin otomatik ayarlar.
+Auth:
 
-## API Gruplari
+- POST /api/auth/login
+- GET /api/auth/me
+- POST /api/auth/logout
 
-- /api/auth
-- /api/tables
-- /api/menu
-- /api/orders
-- /api/reports
-- /api/sales
-- /api/sync
+Tables:
 
-Ek saglik endpointleri:
+- GET /api/tables/
+- GET /api/tables/:id
+- POST /api/tables/:id/open
+- POST /api/tables/:id/close (admin)
+
+Menu:
+
+- GET /api/menu/categories
+- POST /api/menu/categories (admin)
+- GET /api/menu/products
+- POST /api/menu/products (admin)
+- PUT /api/menu/products/:id (admin)
+- DELETE /api/menu/products/:id (admin)
+
+Orders:
+
+- GET /api/orders/table/:id
+- POST /api/orders/add
+- PUT /api/orders/:id/quantity
+- DELETE /api/orders/:id
+
+Reports:
+
+- GET /api/reports/daily?date=YYYY-MM-DD (admin)
+- GET /api/reports/range?start_date=...&end_date=... (admin)
+
+Sales:
+
+- GET /api/sales/history?start_date=...&end_date=... (admin)
+- GET /api/sales/:id/details (admin)
+
+Firebase Sync:
+
+- GET /api/sync/firebase/status (admin)
+- POST /api/sync/firebase/full (admin)
+
+Saglik endpointleri:
+
 - /
 - /health
 - /firebase-health
 
-## Rol Yetkilendirme
+## Kurulum
 
-- waiter:
-  masa acma, siparis islemleri
-- admin:
-  waiter yetkileri + menu, rapor, satis gecmisi, masa kapatma, firebase sync
+Gereksinimler:
 
-## Proje Yapisi
+- Windows 10/11
+- Python 3.8+
+- Node.js 16+
 
-Detayli guncel yapi icin PROJECT_STRUCTURE.md dosyasina bak.
+### Gelistirme Ortami
+
+1. Backend bagimliliklarini kur:
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+2. Frontend bagimliliklarini kur:
+
+```bash
+cd ../frontend
+npm install
+```
+
+3. Uygulamayi baslat:
+
+```bash
+npm start
+```
+
+Alternatif tek komut:
+
+```bash
+run-dev.bat
+```
+
+## Build ve Dagitim
+
+Tek adimla build:
+
+```bash
+build.bat
+```
+
+Beklenen cikti:
+
+- frontend/dist/Kafe POS Setup.exe
+
+Manuel build adimlari icin [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) dosyasina bak.
+
+## Firebase (Opsiyonel)
+
+Firebase etkin degilse uygulama tamamen offline calismaya devam eder.
+
+Desteklenen ortam degiskenleri:
+
+- FIREBASE_ENABLED=true|false
+- FIREBASE_CREDENTIALS_PATH=service-account-json-yolu
+- FIREBASE_BRANCH_ID=default
+- FIREBASE_FULL_SYNC_ON_START=true|false
+
+run-dev.bat, gelistirme ortaminda bu degiskenleri otomatik set eder.
+
+## Veritabani Notlari
+
+Ana tablolar:
+
+- tables
+- categories
+- products
+- active_orders
+- completed_sales
+- sale_details
+- users
+
+Ilk acilista:
+
+- tablo yapilari olusturulur
+- 40 masa olusturulur
+- ornek menu yuklenir
+- varsayilan kullanicilar eklenir
 
 ## Sorun Giderme
 
 Backend acilmiyorsa:
-- backend otomatik bos port bulur (5000+)
+
 - backend loglarini kontrol et
+- port cakismasi varsa backend otomatik alternatif port bulur
 
-Login surekli dusuyorsa:
-- session'lar backend belleginde tutulur
-- backend yeniden baslayinca yeniden login gerekir
+Login tekrar istiyorsa:
 
-Firebase baglanti hatasi varsa:
-- service account yolu ve dosya varligini kontrol et
+- session yapisi bellek icidir
+- backend restart sonrasinda tekrar login gerekir
+
+Firebase baglanmiyorsa:
+
+- FIREBASE_CREDENTIALS_PATH degerini kontrol et
+- service account dosyasinin mevcut oldugunu dogrula
 - FIREBASE_ENABLED degerini kontrol et
+
+## Dokumantasyon
+
+- [QUICKSTART.md](QUICKSTART.md)
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+- [SETUP_GUIDE.md](SETUP_GUIDE.md)
+- [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md)
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## Lisans
 
