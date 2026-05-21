@@ -30,7 +30,7 @@ Beklenen cikti:
 Ilk acilista login ekrani gelir.
 
 Varsayilan kullanicilar:
-- admin / admin123
+- admin / admin
 - garson / garson123
 
 ## 3) Gelistirme Modu

@@ -8,6 +8,19 @@ from auth import require_auth, require_role
 
 reports_bp = Blueprint('reports', __name__)
 
+@reports_bp.route('/dashboard', methods=['GET'])
+@require_auth
+@require_role('admin')
+def get_dashboard():
+    """Canlı dashboard özeti"""
+    try:
+        from models import ReportModel
+        data = ReportModel.get_dashboard()
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @reports_bp.route('/daily', methods=['GET'])
 @require_auth
 @require_role('admin')

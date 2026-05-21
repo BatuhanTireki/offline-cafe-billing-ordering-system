@@ -30,15 +30,39 @@
         input {
             width:100%; padding:10px 12px; border:2px solid #e2e8f0;
             border-radius:8px; font-size:14px; outline:none;
+            background: #fff;
         }
         input:focus { border-color:#667eea; }
+        input:disabled { background:#edf2f7; cursor:not-allowed; }
         .btn {
             width:100%; border:none; border-radius:10px; padding:12px;
             color:white; background:#667eea; font-weight:700; cursor:pointer;
         }
         .btn:hover { background:#5568d3; }
+        .btn:disabled { background:#a0aec0; cursor:not-allowed; }
         .hint { margin-top: 12px; font-size: 13px; color: #718096; }
         .err { margin-top: 10px; color:#c53030; min-height:18px; font-size:13px; }
+        .status { margin-top: 10px; color: #718096; font-size: 12px; min-height: 16px; }
+        .status.ok { color: #38a169; }
+        .status.waiting { color: #d69e2e; }
+        .status.error { color: #c53030; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid #d69e2e; border-top-color: transparent;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            vertical-align: middle; margin-right: 6px;
+        }
+        .log-box {
+            margin-top: 10px; padding: 8px; background: #1a202c; color: #e2e8f0;
+            border-radius: 6px; font-family: 'Consolas', monospace; font-size: 11px;
+            max-height: 150px; overflow-y: auto; white-space: pre-wrap;
+            word-break: break-all; display: none;
+        }
+        .log-toggle {
+            margin-top: 6px; font-size: 11px; color: #667eea; cursor: pointer;
+            text-decoration: underline; display: none;
+        }
     </style>
 </head>
 <body>
@@ -53,37 +77,177 @@
             <label for="password">Şifre</label>
             <input id="password" type="password" autocomplete="current-password" />
         </div>
-        <button class="btn" onclick="login()">Giriş Yap</button>
+        <button class="btn" id="loginBtn" type="button">Giriş Yap</button>
         <div class="err" id="err"></div>
+        <div class="status waiting" id="status">
+            <span class="spinner"></span>Sunucu kontrol ediliyor...
+        </div>
+        <span class="log-toggle" id="logToggle" onclick="toggleLogs()">Detayları göster</span>
+        <div class="log-box" id="logBox"></div>
         <div class="hint">
-            Varsayılan: <strong>admin/admin123</strong> veya <strong>garson/garson123</strong>
+            Varsayılan: <strong>admin</strong> / <strong>admin</strong> veya <strong>garson</strong> / <strong>garson123</strong>
         </div>
     </div>
     <script>
         let API_URL = 'http://127.0.0.1:5000/api';
-        let initialized = false;
+        let backendHealthy = false;
+        let diagnosticLogs = [];
+        let healthTimer = null;
 
-        window.electronAPI.onBackendReady(async (data) => {
-            if (initialized) return;
-            API_URL = `http://127.0.0.1:${data.port}/api`;
-            initialized = true;
+        function resetLoginForm() {
+            const user = document.getElementById('username');
+            const pass = document.getElementById('password');
+            const btn = document.getElementById('loginBtn');
+            user.disabled = false;
+            pass.disabled = false;
+            user.value = '';
+            pass.value = '';
+            btn.disabled = false;
+            btn.textContent = 'Giriş Yap';
+            document.getElementById('err').textContent = '';
+            backendHealthy = false;
+        }
+
+        function setBackendReady() {
+            backendHealthy = true;
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = false;
+            document.getElementById('username').disabled = false;
+            document.getElementById('password').disabled = false;
+            const status = document.getElementById('status');
+            status.className = 'status ok';
+            status.textContent = '✓ Sunucu hazır';
+            document.getElementById('logToggle').style.display = 'none';
+            document.getElementById('logBox').style.display = 'none';
+            setTimeout(() => { status.style.display = 'none'; }, 2500);
             autoRedirectIfLoggedIn();
-        });
+        }
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            if (initialized) return;
+        async function resolveApiUrl() {
             try {
                 const port = await window.electronAPI.getBackendPort();
                 API_URL = `http://127.0.0.1:${port}/api`;
             } catch (_) {}
-            initialized = true;
-            autoRedirectIfLoggedIn();
+        }
+
+        window.electronAPI.onBackendReady(async (data) => {
+            if (data.port) {
+                API_URL = `http://127.0.0.1:${data.port}/api`;
+            }
+            if (data.logs) diagnosticLogs = data.logs;
+            if (data.error) diagnosticLogs.push(`[Electron] ${data.error}`);
+            await checkBackendOnce();
         });
 
-        function autoRedirectIfLoggedIn() {
+        document.getElementById('loginBtn').addEventListener('click', login);
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            resetLoginForm();
+            await resolveApiUrl();
+            startHealthCheck();
+        });
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                resetLoginForm();
+                startHealthCheck();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') login();
+        });
+
+        function toggleLogs() {
+            const box = document.getElementById('logBox');
+            if (box.style.display === 'none' || !box.style.display) {
+                box.style.display = 'block';
+                document.getElementById('logToggle').textContent = 'Detayları gizle';
+            } else {
+                box.style.display = 'none';
+                document.getElementById('logToggle').textContent = 'Detayları göster';
+            }
+        }
+
+        async function updateDiagnosticLogs() {
+            try {
+                const logs = await window.electronAPI.getBackendLogs();
+                if (logs && logs.length > 0) diagnosticLogs = logs;
+            } catch (_) {}
+            document.getElementById('logBox').textContent = diagnosticLogs.length
+                ? diagnosticLogs.join('\n')
+                : '(henüz log yok)';
+        }
+
+        async function checkBackendOnce() {
+            try {
+                if (window.electronAPI.checkBackendHealth) {
+                    const ok = await window.electronAPI.checkBackendHealth();
+                    if (ok) {
+                        setBackendReady();
+                        return true;
+                    }
+                }
+                const baseUrl = API_URL.replace('/api', '');
+                const resp = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(2000) });
+                if (resp.ok) {
+                    setBackendReady();
+                    return true;
+                }
+            } catch (_) {}
+            return false;
+        }
+
+        function startHealthCheck() {
+            if (healthTimer) clearInterval(healthTimer);
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.className = 'status waiting';
+            status.innerHTML = '<span class="spinner"></span>Sunucu kontrol ediliyor...';
+
+            let attempts = 0;
+            const maxAttempts = 60;
+
+            healthTimer = setInterval(async () => {
+                attempts++;
+                await resolveApiUrl();
+                if (await checkBackendOnce()) {
+                    clearInterval(healthTimer);
+                    healthTimer = null;
+                    return;
+                }
+
+                if (attempts % 5 === 0) await updateDiagnosticLogs();
+
+                if (attempts >= maxAttempts) {
+                    clearInterval(healthTimer);
+                    healthTimer = null;
+                    status.className = 'status error';
+                    status.textContent = '⚠️ Sunucu başlatılamadı. Giriş denenebilir.';
+                    document.getElementById('loginBtn').disabled = false;
+                    await updateDiagnosticLogs();
+                    document.getElementById('logToggle').style.display = 'block';
+                    document.getElementById('err').innerHTML =
+                        'Detaylı log: <strong>%APPDATA%\\KafePOS\\logs\\backend.log</strong>';
+                }
+            }, 1000);
+        }
+
+        async function autoRedirectIfLoggedIn() {
             const auth = JSON.parse(localStorage.getItem('auth') || 'null');
-            if (auth && auth.token && auth.user) {
-                window.location.href = 'index.html';
+            if (!auth?.token) return;
+            try {
+                const resp = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${auth.token}` },
+                    signal: AbortSignal.timeout(3000),
+                });
+                if (resp.ok) {
+                    window.location.href = 'index.html';
+                } else {
+                    localStorage.removeItem('auth');
+                }
+            } catch (_) {
+                /* backend hazır değilse yönlendirme */
             }
         }
 
@@ -95,25 +259,49 @@
                 document.getElementById('err').textContent = 'Kullanıcı adı ve şifre gerekli.';
                 return;
             }
-            try {
-                const response = await fetch(`${API_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await response.json();
-                if (!data.success) {
-                    document.getElementById('err').textContent = data.error || 'Giriş başarısız.';
+
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            btn.textContent = 'Giriş yapılıyor...';
+
+            await resolveApiUrl();
+
+            let lastError = '';
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const response = await fetch(`${API_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password }),
+                        signal: AbortSignal.timeout(8000)
+                    });
+                    const contentType = response.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) {
+                        throw new Error('Sunucu yanıtı geçersiz');
+                    }
+                    const data = await response.json();
+                    if (!data.success) {
+                        document.getElementById('err').textContent = data.error || 'Giriş başarısız.';
+                        btn.disabled = false;
+                        btn.textContent = 'Giriş Yap';
+                        return;
+                    }
+                    localStorage.setItem('auth', JSON.stringify({
+                        token: data.token,
+                        user: data.user,
+                        settings: data.settings || {}
+                    }));
+                    window.location.href = 'index.html';
                     return;
+                } catch (e) {
+                    lastError = e.message || 'Bağlantı hatası';
+                    if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
                 }
-                localStorage.setItem('auth', JSON.stringify({
-                    token: data.token,
-                    user: data.user
-                }));
-                window.location.href = 'index.html';
-            } catch (e) {
-                document.getElementById('err').textContent = 'Bağlantı hatası.';
             }
+
+            document.getElementById('err').textContent = `Sunucuya bağlanılamadı (${lastError}).`;
+            btn.disabled = false;
+            btn.textContent = 'Giriş Yap';
         }
     </script>
 </body>

@@ -251,8 +251,25 @@
     <div class="header">
         <div>
             <h1 id="tableTitle">Masa 1</h1>
+            <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="text" id="tableNote" placeholder="Masa notu" style="padding:8px;border:2px solid #e2e8f0;border-radius:8px;min-width:200px;">
+                <button class="back-btn" type="button" style="padding:8px 14px;font-size:13px;" onclick="saveNote()">Not Kaydet</button>
+                <button class="back-btn" type="button" style="padding:8px 14px;font-size:13px;background:#ed8936;" onclick="openTransferModal()">Masa Transfer</button>
+            </div>
         </div>
         <button class="back-btn" onclick="goBack()">← Geri Dön</button>
+    </div>
+
+    <div id="transferModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:white;padding:24px;border-radius:12px;min-width:300px;">
+            <h3 style="margin-bottom:12px;color:#667eea;">Masa Transfer</h3>
+            <label>Hedef masa numarasi</label>
+            <input type="number" id="transferTarget" min="1" max="40" style="width:100%;margin:8px 0 16px;padding:10px;border:2px solid #e2e8f0;border-radius:8px;">
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button class="back-btn" type="button" style="background:#718096;" onclick="closeTransferModal()">Iptal</button>
+                <button class="back-btn" type="button" onclick="confirmTransfer()">Transfer Et</button>
+            </div>
+        </div>
     </div>
 
     <div class="main-content">
@@ -317,6 +334,17 @@
             return true;
         }
 
+        function canCloseTable() {
+            if (currentUser?.role === 'admin') return true;
+            const auth = getAuth();
+            return auth?.settings?.waiter_can_close === true;
+        }
+
+        function applyPaymentVisibility() {
+            const el = document.querySelector('.payment-buttons');
+            if (el) el.style.display = canCloseTable() ? 'flex' : 'none';
+        }
+
         function authHeaders(extra = {}) {
             const auth = getAuth();
             return Object.assign({}, extra, {
@@ -338,6 +366,9 @@
         // URL'den masa ID'sini al
         const urlParams = new URLSearchParams(window.location.search);
         tableId = urlParams.get('id');
+        if (!tableId) {
+            window.location.replace('index.html');
+        }
 
         // Backend hazır olduğunda
         window.electronAPI.onBackendReady(async (data) => {
@@ -346,9 +377,7 @@
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
             initialized = true;
-            if (currentUser.role !== 'admin') {
-                document.querySelector('.payment-buttons').style.display = 'none';
-            }
+            applyPaymentVisibility();
             await init();
         });
 
@@ -360,9 +389,7 @@
                 API_URL = `http://127.0.0.1:${port}/api`;
                 backendReady = true;
                 initialized = true;
-                if (currentUser.role !== 'admin') {
-                    document.querySelector('.payment-buttons').style.display = 'none';
-                }
+                applyPaymentVisibility();
                 await init();
             } catch (error) {
                 console.log('Backend henüz hazır değil, bekleniyor...');
@@ -398,15 +425,18 @@
 
         // Kategori filtresini render et
         function renderCategoryFilter() {
-            const categories = ['all', ...new Set(products.map(p => p.category_name))];
+            const categories = ['all', ...new Set(products.map(p => p.category_name).filter(Boolean))];
             const filter = document.getElementById('categoryFilter');
-            
-            filter.innerHTML = categories.map(cat => `
-                <button class="category-btn ${cat === selectedCategory ? 'active' : ''}"
-                        onclick="filterByCategory('${cat}')">
-                    ${cat === 'all' ? 'Tümü' : cat}
-                </button>
-            `).join('');
+            filter.innerHTML = '';
+
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `category-btn ${cat === selectedCategory ? 'active' : ''}`;
+                btn.textContent = cat === 'all' ? 'Tümü' : cat;
+                btn.addEventListener('click', () => filterByCategory(cat));
+                filter.appendChild(btn);
+            });
         }
 
         // Kategori filtrele
@@ -453,7 +483,11 @@
                 
                 if (data.success) {
                     currentTable = data.data;
-                    document.getElementById('tableTitle').textContent = `Masa ${currentTable.table_number}`;
+                    let title = `Masa ${currentTable.table_number}`;
+                    if (currentTable.note) title += ` — ${currentTable.note}`;
+                    document.getElementById('tableTitle').textContent = title;
+                    const noteEl = document.getElementById('tableNote');
+                    if (noteEl) noteEl.value = currentTable.note || '';
                     updateTotal();
                 }
             } catch (error) {
@@ -587,9 +621,61 @@
         }
 
         // Masayı kapat
+        async function saveNote() {
+            try {
+                const note = document.getElementById('tableNote').value;
+                const res = await authFetch(`${API_URL}/tables/${tableId}/note`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    await loadTableInfo();
+                    alert('Not kaydedildi');
+                }
+            } catch (e) {
+                alert('Not kaydedilemedi');
+            }
+        }
+
+        function openTransferModal() {
+            document.getElementById('transferModal').style.display = 'flex';
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').style.display = 'none';
+        }
+
+        async function confirmTransfer() {
+            const num = parseInt(document.getElementById('transferTarget').value, 10);
+            if (!num) { alert('Masa numarasi girin'); return; }
+            try {
+                const tablesRes = await authFetch(`${API_URL}/tables/`);
+                const tablesData = await tablesRes.json();
+                const target = (tablesData.data || []).find(t => t.table_number === num);
+                if (!target) { alert('Masa bulunamadi'); return; }
+                const res = await authFetch(`${API_URL}/tables/${tableId}/transfer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_table_id: target.id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeTransferModal();
+                    alert('Transfer tamamlandi');
+                    goBack();
+                } else {
+                    alert(data.error || 'Transfer basarisiz');
+                }
+            } catch (e) {
+                alert('Baglanti hatasi');
+            }
+        }
+
         async function closeTable(paymentMethod) {
-            if (currentUser?.role !== 'admin') {
-                alert('Bu işlem için admin yetkisi gerekli.');
+            if (!canCloseTable()) {
+                alert('Odeme alma yetkiniz yok. Admin ayarlardan garson yetkisini acabilir.');
                 return;
             }
             if (!currentTable || currentTable.total_amount === 0) {
@@ -613,9 +699,12 @@
                 if (data.success) {
                     alert('Ödeme alındı! Masa kapatıldı.');
                     goBack();
+                } else {
+                    alert(data.error || 'Masa kapatılamadı.');
                 }
             } catch (error) {
                 console.error('Masa kapatılamadı:', error);
+                alert('Bağlantı hatası. Masa kapatılamadı.');
             }
         }
 

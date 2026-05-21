@@ -23,8 +23,8 @@ def get_categories():
 def add_category():
     """Yeni kategori ekle"""
     try:
-        data = request.get_json()
-        name = data.get('name')
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
         
         if not name:
             return jsonify({'success': False, 'error': 'Kategori adı gerekli'}), 400
@@ -33,8 +33,25 @@ def add_category():
         if category_id:
             return jsonify({'success': True, 'id': category_id})
         return jsonify({'success': False, 'error': 'Kategori eklenemedi'}), 500
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 409
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@menu_bp.route('/categories/<int:category_id>', methods=['DELETE'])
+@require_auth
+@require_role('admin')
+def delete_category(category_id):
+    """Kategori sil"""
+    try:
+        if MenuModel.delete_category(category_id):
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'error': 'Kategori silinemedi'}), 404
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 409
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @menu_bp.route('/products', methods=['GET'])
 @require_auth
@@ -64,7 +81,7 @@ def _parse_price(price_raw):
 def add_product():
     """Yeni ürün ekle"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         name = data.get('name')
         price_raw = data.get('price')
         category_id = data.get('category_id')
@@ -76,7 +93,7 @@ def add_product():
         if err:
             return jsonify({'success': False, 'error': err}), 400
         
-        product_id = MenuModel.add_product(name, price, category_id)
+        product_id = MenuModel.add_product(name, price, int(category_id))
         return jsonify({'success': True, 'id': product_id})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -87,7 +104,7 @@ def add_product():
 def update_product(product_id):
     """Ürün güncelle"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         name = data.get('name')
         price_raw = data.get('price')
         category_id = data.get('category_id')
@@ -99,7 +116,7 @@ def update_product(product_id):
         if err:
             return jsonify({'success': False, 'error': err}), 400
         
-        MenuModel.update_product(product_id, name, price, category_id)
+        MenuModel.update_product(product_id, name, price, int(category_id))
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

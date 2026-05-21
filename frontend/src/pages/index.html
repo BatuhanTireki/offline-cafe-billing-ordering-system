@@ -99,6 +99,10 @@
             background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
         }
 
+        .table-card.open {
+            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+        }
+
         .table-card:hover {
             transform: scale(1.05);
             box-shadow: 0 8px 25px rgba(0,0,0,0.2);
@@ -166,9 +170,11 @@
     <div class="header">
         <h1>☕ Kafe POS Sistemi</h1>
         <div class="nav-buttons">
-            <button class="nav-btn menu" id="menuBtn" onclick="goToMenu()">📋 Menü Yönetimi</button>
+            <button class="nav-btn" id="dashboardBtn" style="background:#4299e1;color:white;" onclick="goToDashboard()">📊 Dashboard</button>
+            <button class="nav-btn menu" id="menuBtn" onclick="goToMenu()">📋 Menü</button>
+            <button class="nav-btn" id="adminBtn" style="background:#2d3748;color:white;" onclick="goToAdmin()">⚙️ Yönetim</button>
             <button class="nav-btn" id="historyBtn" style="background: #9f7aea; color: white;" onclick="goToHistory()">📜 Satış Geçmişi</button>
-            <button class="nav-btn reports" id="reportsBtn" onclick="goToReports()">📊 Raporlar</button>
+            <button class="nav-btn reports" id="reportsBtn" onclick="goToReports()">📈 Raporlar</button>
             <button class="nav-btn" style="background:#718096; color:white;" onclick="logout()">🚪 Çıkış</button>
         </div>
     </div>
@@ -236,11 +242,7 @@
         // Backend port'unu al
         window.electronAPI.onBackendReady((data) => {
             if (!requireAuth()) return;
-            if (currentUser.role !== 'admin') {
-                document.getElementById('menuBtn').style.display = 'none';
-                document.getElementById('historyBtn').style.display = 'none';
-                document.getElementById('reportsBtn').style.display = 'none';
-            }
+            hideAdminNav();
             if (initialized) return; // Zaten başlatıldıysa tekrar çalıştırma
             API_URL = `http://127.0.0.1:${data.port}/api`;
             backendReady = true;
@@ -248,15 +250,19 @@
             loadTables();
         });
 
+        function hideAdminNav() {
+            if (currentUser?.role !== 'admin') {
+                ['menuBtn', 'historyBtn', 'reportsBtn', 'dashboardBtn', 'adminBtn'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+            }
+        }
+
         // Sayfa yüklendiğinde
         window.addEventListener('DOMContentLoaded', async () => {
             if (!requireAuth()) return;
-            // Garson için admin ekranlarını gizle
-            if (currentUser.role !== 'admin') {
-                document.getElementById('menuBtn').style.display = 'none';
-                document.getElementById('historyBtn').style.display = 'none';
-                document.getElementById('reportsBtn').style.display = 'none';
-            }
+            hideAdminNav();
             if (initialized) return; // Zaten başlatıldıysa tekrar çalıştırma
             try {
                 const port = await window.electronAPI.getBackendPort();
@@ -282,6 +288,7 @@
                 
                 if (data.success) {
                     renderTables(data.data);
+                    startTablesPolling();
                 }
             } catch (error) {
                 console.error('Masalar yüklenemedi:', error);
@@ -295,12 +302,15 @@
             grid.innerHTML = '';
 
             tables.forEach(table => {
-                const isOccupied = table.status === 'occupied';
+                const status = table.status || 'empty';
+                const cardClass = status === 'occupied' ? 'occupied'
+                    : status === 'open' ? 'open' : 'empty';
                 const card = document.createElement('div');
-                card.className = `table-card ${isOccupied ? 'occupied' : 'empty'}`;
-                card.onclick = () => openTable(table.id, table.status);
+                card.className = `table-card ${cardClass}`;
+                card.onclick = () => openTable(table.id, status);
 
-                const statusText = isOccupied ? 'Dolu' : (table.status === 'open' ? 'Açık' : 'Boş');
+                const statusText = status === 'occupied' ? 'Dolu'
+                    : status === 'open' ? 'Açık' : 'Boş';
                 const amount = (table.total_amount != null && table.total_amount > 0) ? formatPrice(table.total_amount) : '';
 
                 card.innerHTML = `
@@ -322,6 +332,8 @@
                 
                 if (data.success) {
                     goToTableDetail(tableId);
+                } else {
+                    alert(data.error || 'Masa açılamadı.');
                 }
             } else {
                 // Açık veya dolu masa - detaya git (tekrar açma)
@@ -352,13 +364,35 @@
             window.location.href = 'reports.html';
         }
 
-        function logout() {
-            localStorage.removeItem('auth');
-            window.location.href = 'login.html';
+        function goToDashboard() {
+            if (currentUser?.role !== 'admin') return;
+            window.location.href = 'dashboard.html';
         }
 
-        // Her 5 saniyede bir masaları güncelle
-        setInterval(loadTables, 5000);
+        function goToAdmin() {
+            if (currentUser?.role !== 'admin') return;
+            window.location.href = 'admin.html';
+        }
+
+        async function logout() {
+            const auth = JSON.parse(localStorage.getItem('auth') || 'null');
+            if (auth && auth.token) {
+                try {
+                    await fetch(`${API_URL}/auth/logout`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${auth.token}` }
+                    });
+                } catch (_) {}
+            }
+            localStorage.removeItem('auth');
+            window.location.replace('login.html');
+        }
+
+        let tablesPollTimer = null;
+        function startTablesPolling() {
+            if (tablesPollTimer) return;
+            tablesPollTimer = setInterval(loadTables, 5000);
+        }
     </script>
 </body>
 </html>

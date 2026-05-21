@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px; min-height: 100vh;
+        }
+        .header {
+            background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .back-btn, .refresh-btn {
+            padding: 10px 20px; border: none; border-radius: 8px;
+            cursor: pointer; font-weight: 600; margin-left: 8px;
+        }
+        .back-btn { background: #667eea; color: white; }
+        .refresh-btn { background: #48bb78; color: white; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px; margin-bottom: 20px;
+        }
+        .card {
+            background: white; padding: 20px; border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .card h3 { color: #718096; font-size: 13px; margin-bottom: 8px; }
+        .card .value { font-size: 28px; font-weight: 700; color: #2d3748; }
+        .card .sub { font-size: 12px; color: #a0aec0; margin-top: 4px; }
+        .panel {
+            background: white; padding: 24px; border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .panel h2 { color: #667eea; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #667eea; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Canlı Dashboard</h1>
+        <div>
+            <button class="refresh-btn" type="button" onclick="loadDashboard()">🔄 Yenile</button>
+            <button class="back-btn" type="button" onclick="location.href='index.html'">← Ana Sayfa</button>
+        </div>
+    </div>
+
+    <div class="grid" id="statsGrid"></div>
+
+    <div class="panel">
+        <h2>🏆 Bugün En Çok Satanlar</h2>
+        <table>
+            <thead><tr><th>Ürün</th><th>Adet</th><th>Ciro</th></tr></thead>
+            <tbody id="topProducts"><tr><td colspan="3">Yükleniyor...</td></tr></tbody>
+        </table>
+    </div>
+
+    <script>
+        let API_URL = 'http://127.0.0.1:5000/api';
+
+        function formatPrice(v) {
+            const n = (v == null || isNaN(v)) ? 0 : Number(v);
+            return n.toFixed(2) + ' ₺';
+        }
+
+        function getAuth() { return JSON.parse(localStorage.getItem('auth') || 'null'); }
+
+        function authFetch(url, options = {}) {
+            const auth = getAuth();
+            if (!auth?.token) { location.href = 'login.html'; return Promise.reject(); }
+            if (auth.user?.role !== 'admin') { location.href = 'index.html'; return Promise.reject(); }
+            options.headers = Object.assign({}, options.headers, {
+                Authorization: `Bearer ${auth.token}`
+            });
+            return fetch(url, options);
+        }
+
+        async function loadDashboard() {
+            try {
+                const port = await window.electronAPI.getBackendPort();
+                API_URL = `http://127.0.0.1:${port}/api`;
+                const res = await authFetch(`${API_URL}/reports/dashboard`);
+                const json = await res.json();
+                if (!json.success) return;
+
+                const d = json.data;
+                const s = d.sales_today || {};
+                const t = d.tables || {};
+
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="card"><h3>Bugünkü Ciro</h3><div class="value">${formatPrice(s.total_revenue)}</div>
+                        <div class="sub">${s.total_sales || 0} satış</div></div>
+                    <div class="card"><h3>Nakit</h3><div class="value">${formatPrice(s.cash_total)}</div></div>
+                    <div class="card"><h3>Kart</h3><div class="value">${formatPrice(s.card_total)}</div></div>
+                    <div class="card"><h3>Açık Masa Ciro</h3><div class="value">${formatPrice(d.open_tables_revenue)}</div>
+                        <div class="sub">Henüz kapanmamış</div></div>
+                    <div class="card"><h3>Dolu Masalar</h3><div class="value">${t.occupied || 0}</div></div>
+                    <div class="card"><h3>Açık Masalar</h3><div class="value">${t.open || 0}</div></div>
+                    <div class="card"><h3>Boş Masalar</h3><div class="value">${t.empty || 0}</div></div>
+                    <div class="card"><h3>Toplam Aktif</h3><div class="value">${t.active || 0}</div></div>
+                `;
+
+                const tbody = document.getElementById('topProducts');
+                const top = d.top_products || [];
+                tbody.innerHTML = top.length ? top.map(p => `
+                    <tr>
+                        <td>${p.product_name}</td>
+                        <td>${p.qty}</td>
+                        <td><strong>${formatPrice(p.revenue)}</strong></td>
+                    </tr>
+                `).join('') : '<tr><td colspan="3">Henüz satış yok</td></tr>';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+            setInterval(loadDashboard, 15000);
+        });
+    </script>
+</body>
+</html>
+
+

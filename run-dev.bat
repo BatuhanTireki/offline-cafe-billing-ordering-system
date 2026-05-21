@@ -27,7 +27,8 @@ REM Service account dosyanizi backend\firebase-service-account.json olarak kayde
 set "FIREBASE_ENABLED=true"
 set "FIREBASE_CREDENTIALS_PATH=%ROOT_DIR%backend\firebase-service-account.json"
 set "FIREBASE_BRANCH_ID=default"
-set "FIREBASE_FULL_SYNC_ON_START=true"
+set "FIREBASE_FULL_SYNC_ON_START=false"
+set "FIREBASE_SYNC_CORE_ON_START=true"
 echo FIREBASE_ENABLED=%FIREBASE_ENABLED%
 echo FIREBASE_CREDENTIALS_PATH=%FIREBASE_CREDENTIALS_PATH%
 

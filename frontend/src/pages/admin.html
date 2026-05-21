@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yonetim</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px; min-height: 100vh;
+        }
+        .header {
+            background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .back-btn {
+            padding: 10px 20px; background: #667eea; color: white; border: none;
+            border-radius: 8px; cursor: pointer; font-weight: 600;
+        }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tab {
+            padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;
+            background: rgba(255,255,255,0.3); color: white; font-weight: 600;
+        }
+        .tab.active { background: white; color: #667eea; }
+        .panel {
+            background: white; padding: 24px; border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 20px;
+        }
+        .panel h2 { color: #667eea; margin-bottom: 16px; font-size: 20px; }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: end; }
+        input, select {
+            padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px;
+        }
+        .btn {
+            padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer;
+            font-weight: 600; color: white;
+        }
+        .btn-primary { background: #48bb78; }
+        .btn-danger { background: #e53e3e; }
+        .btn-secondary { background: #718096; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #667eea; color: white; padding: 10px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        .hidden { display: none; }
+        .msg { margin-top: 10px; font-size: 13px; color: #38a169; }
+        .msg.err { color: #e53e3e; }
+        label.toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Yonetim Paneli</h1>
+        <button class="back-btn" type="button" onclick="location.href='index.html'">Ana Sayfa</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" type="button" data-tab="users" onclick="showTab('users')">Kullanicilar</button>
+        <button class="tab" type="button" data-tab="settings" onclick="showTab('settings')">Ayarlar</button>
+        <button class="tab" type="button" data-tab="backup" onclick="showTab('backup')">Yedekleme</button>
+    </div>
+
+    <div id="tab-users" class="panel">
+        <h2>Kullanici Yonetimi</h2>
+        <div class="form-row">
+            <input type="text" id="newUsername" placeholder="Kullanici adi" />
+            <input type="password" id="newPassword" placeholder="Sifre" />
+            <select id="newRole">
+                <option value="waiter">Garson</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button class="btn btn-primary" type="button" onclick="createUser()">Ekle</button>
+        </div>
+        <p id="userMsg" class="msg"></p>
+        <table>
+            <thead><tr><th>Kullanici</th><th>Rol</th><th>Durum</th><th>Islem</th></tr></thead>
+            <tbody id="usersBody"><tr><td colspan="4">Yukleniyor...</td></tr></tbody>
+        </table>
+    </div>
+
+    <div id="tab-settings" class="panel hidden">
+        <h2>Uygulama Ayarlari</h2>
+        <label class="toggle">
+            <input type="checkbox" id="waiterCanClose" />
+            Garsonlar odeme alip masa kapatabilsin
+        </label>
+        <div style="margin-top:16px">
+            <button class="btn btn-primary" type="button" onclick="saveSettings()">Kaydet</button>
+        </div>
+        <p id="settingsMsg" class="msg"></p>
+    </div>
+
+    <div id="tab-backup" class="panel hidden">
+        <h2>Veritabani Yedekleme</h2>
+        <p style="margin-bottom:12px;color:#718096">SQLite veritabanini yedekleyin veya geri yukleyin.</p>
+        <div class="form-row">
+            <button class="btn btn-primary" type="button" onclick="downloadBackup()">Yedek Indir</button>
+        </div>
+        <div class="form-row" style="margin-top:16px">
+            <input type="file" id="restoreFile" accept=".db" />
+            <button class="btn btn-danger" type="button" onclick="restoreBackup()">Geri Yukle</button>
+        </div>
+        <p id="backupMsg" class="msg"></p>
+        <h3 style="margin-top:20px;color:#667eea;font-size:16px">Mevcut Yedekler</h3>
+        <ul id="backupList" style="margin-top:8px;padding-left:20px;color:#4a5568"></ul>
+    </div>
+
+    <script>
+        let API_URL = 'http://127.0.0.1:5000/api';
+
+        function getAuth() { return JSON.parse(localStorage.getItem('auth') || 'null'); }
+
+        function authFetch(url, options = {}) {
+            const auth = getAuth();
+            if (!auth?.token || auth.user?.role !== 'admin') {
+                location.href = 'index.html';
+                return Promise.reject();
+            }
+            options.headers = Object.assign({}, options.headers, {
+                Authorization: `Bearer ${auth.token}`
+            });
+            return fetch(url, options);
+        }
+
+        function showTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+            document.querySelectorAll('[id^="tab-"]').forEach(p => p.classList.add('hidden'));
+            document.getElementById('tab-' + name).classList.remove('hidden');
+        }
+
+        async function bootstrap() {
+            const port = await window.electronAPI.getBackendPort();
+            API_URL = `http://127.0.0.1:${port}/api`;
+            await loadUsers();
+            await loadSettings();
+            await loadBackupList();
+        }
+
+        async function loadUsers() {
+            const res = await authFetch(`${API_URL}/auth/users`);
+            const json = await res.json();
+            const tbody = document.getElementById('usersBody');
+            if (!json.success) { tbody.innerHTML = '<tr><td colspan="4">Hata</td></tr>'; return; }
+            tbody.innerHTML = json.data.map(u => `
+                <tr>
+                    <td>${u.username}</td>
+                    <td>${u.role}</td>
+                    <td>${u.is_active ? 'Aktif' : 'Pasif'}</td>
+                    <td>
+                        <button class="btn btn-secondary" type="button" onclick="resetPassword(${u.id})">Sifre</button>
+                        ${u.is_active ? `<button class="btn btn-danger" type="button" onclick="deactivateUser(${u.id})">Pasif</button>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function createUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('newRole').value;
+            const msg = document.getElementById('userMsg');
+            msg.className = 'msg';
+            if (!username || !password) { msg.textContent = 'Kullanici adi ve sifre gerekli'; msg.classList.add('err'); return; }
+            const res = await authFetch(`${API_URL}/auth/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role })
+            });
+            const json = await res.json();
+            if (json.success) {
+                msg.textContent = 'Kullanici eklendi';
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newPassword').value = '';
+                await loadUsers();
+            } else {
+                msg.textContent = json.error || 'Hata'; msg.classList.add('err');
+            }
+        }
+
+        async function resetPassword(id) {
+            const password = prompt('Yeni sifre:');
+            if (!password) return;
+            const res = await authFetch(`${API_URL}/auth/users/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const json = await res.json();
+            alert(json.success ? 'Sifre guncellendi' : (json.error || 'Hata'));
+        }
+
+        async function deactivateUser(id) {
+            if (!confirm('Kullanici pasif yapilsin mi?')) return;
+            await authFetch(`${API_URL}/auth/users/${id}`, { method: 'DELETE' });
+            await loadUsers();
+        }
+
+        async function loadSettings() {
+            const res = await authFetch(`${API_URL}/settings/`);
+            const json = await res.json();
+            if (json.success) {
+                document.getElementById('waiterCanClose').checked =
+                    json.data.waiter_can_close === true || json.data.waiter_can_close === 'true';
+            }
+        }
+
+        async function saveSettings() {
+            const msg = document.getElementById('settingsMsg');
+            msg.className = 'msg';
+            const res = await authFetch(`${API_URL}/settings/`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ waiter_can_close: document.getElementById('waiterCanClose').checked })
+            });
+            const json = await res.json();
+            if (json.success) {
+                msg.textContent = 'Ayarlar kaydedildi';
+                const auth = getAuth();
+                auth.settings = json.data;
+                localStorage.setItem('auth', JSON.stringify(auth));
+            } else {
+                msg.textContent = json.error || 'Hata'; msg.classList.add('err');
+            }
+        }
+
+        async function downloadBackup() {
+            const msg = document.getElementById('backupMsg');
+            msg.className = 'msg';
+            try {
+                const res = await authFetch(`${API_URL}/backup/export`);
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `cafe_backup_${Date.now()}.db`;
+                a.click();
+                msg.textContent = 'Yedek indirildi';
+                await loadBackupList();
+            } catch (e) {
+                msg.textContent = 'Indirme hatasi'; msg.classList.add('err');
+            }
+        }
+
+        async function restoreBackup() {
+            const file = document.getElementById('restoreFile').files[0];
+            const msg = document.getElementById('backupMsg');
+            msg.className = 'msg';
+            if (!file) { msg.textContent = 'Dosya secin'; msg.classList.add('err'); return; }
+            if (!confirm('Mevcut veriler degisecek. Devam?')) return;
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await authFetch(`${API_URL}/backup/restore`, { method: 'POST', body: fd });
+            const json = await res.json();
+            if (json.success) {
+                msg.textContent = json.message || 'Geri yuklendi. Uygulamayi yeniden baslatin.';
+            } else {
+                msg.textContent = json.error || 'Hata'; msg.classList.add('err');
+            }
+        }
+
+        async function loadBackupList() {
+            try {
+                const res = await authFetch(`${API_URL}/backup/list`);
+                const json = await res.json();
+                const ul = document.getElementById('backupList');
+                if (!json.success || !json.data.length) {
+                    ul.innerHTML = '<li>Yerel yedek yok</li>';
+                    return;
+                }
+                ul.innerHTML = json.data.map(f => `<li>${f.name} (${Math.round(f.size/1024)} KB)</li>`).join('');
+            } catch (_) {}
+        }
+
+        window.addEventListener('DOMContentLoaded', bootstrap);
+    </script>
+</body>
+</html>

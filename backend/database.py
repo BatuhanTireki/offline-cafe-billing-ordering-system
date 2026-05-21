@@ -20,7 +20,12 @@ class Database:
         """Veritabanı yolunu belirle - exe durumunda doğru konumda açılsın"""
         if getattr(sys, 'frozen', False):
             # PyInstaller ile paketlenmiş exe durumu
-            base_path = os.path.dirname(sys.executable)
+            # %APPDATA%/KafePOS kullan (Program Files yazma koruması sorununu önler)
+            appdata = os.environ.get('APPDATA', '')
+            if appdata:
+                base_path = os.path.join(appdata, 'KafePOS')
+            else:
+                base_path = os.path.dirname(sys.executable)
         else:
             # Normal Python çalıştırma
             base_path = os.path.dirname(os.path.abspath(__file__))
@@ -132,6 +137,7 @@ class Database:
         self._initialize_tables_if_needed(cursor, conn)
         self._initialize_sample_data_if_needed(cursor, conn)
         self._initialize_users_if_needed(cursor, conn)
+        self._run_migrations(cursor, conn)
         
         conn.close()
     
@@ -194,7 +200,7 @@ class Database:
         cursor.execute("SELECT COUNT(*) as count FROM users")
         if cursor.fetchone()['count'] == 0:
             users = [
-                ("admin", "admin123", "admin"),
+                ("admin", "admin", "admin"),
                 ("garson", "garson123", "waiter"),
             ]
             for username, raw_password, role in users:
@@ -204,6 +210,41 @@ class Database:
                 """, (username, generate_password_hash(raw_password), role))
             conn.commit()
             print("✓ Varsayılan kullanıcılar oluşturuldu (admin/garson)")
+
+    def _run_migrations(self, cursor, conn):
+        """Şema sürümüne göre tek seferlik veritabanı güncellemeleri."""
+        cursor.execute("PRAGMA user_version")
+        version = cursor.fetchone()[0]
+
+        if version < 2:
+            cursor.execute("SELECT id FROM users WHERE username = ?", ("admin",))
+            if cursor.fetchone():
+                cursor.execute(
+                    "UPDATE users SET password_hash = ? WHERE username = ?",
+                    (generate_password_hash("admin"), "admin"),
+                )
+                conn.commit()
+                print("✓ Admin şifresi güncellendi (admin / admin)")
+            cursor.execute("PRAGMA user_version = 2")
+
+        if version < 3:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
+            cursor.execute("""
+                INSERT OR IGNORE INTO settings (key, value)
+                VALUES ('waiter_can_close', 'false')
+            """)
+            try:
+                cursor.execute("ALTER TABLE tables ADD COLUMN note TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            conn.commit()
+            print("✓ Ayarlar ve masa notu kolonu eklendi")
+            cursor.execute("PRAGMA user_version = 3")
 
 # Global database instance
 db = Database()

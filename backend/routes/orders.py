@@ -34,7 +34,7 @@ def _parse_quantity(qty_raw, default=1):
 def add_order():
     """Masaya ürün ekle"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         table_id = data.get('table_id')
         product_id = data.get('product_id')
         quantity, err = _parse_quantity(data.get('quantity', 1))
@@ -54,7 +54,7 @@ def add_order():
 def update_quantity(order_id):
     """Sipariş adedini güncelle"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         quantity, err = _parse_quantity(data.get('quantity'), default=None)
         if err or quantity is None:
             return jsonify({'success': False, 'error': err or 'Adet gerekli'}), 400

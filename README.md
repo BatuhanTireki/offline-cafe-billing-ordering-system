@@ -44,7 +44,7 @@ Teknoloji yiginlari:
 
 Varsayilan kullanicilar:
 
-- admin / admin123
+- admin / admin
 - garson / garson123
 
 ## Ekranlar

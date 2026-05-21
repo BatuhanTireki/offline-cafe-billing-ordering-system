@@ -2,6 +2,7 @@
 İş mantığı ve veritabanı işlemlerini yöneten model sınıfları
 """
 
+import sqlite3
 from datetime import datetime
 from database import db
 
@@ -14,6 +15,8 @@ try:
         push_sale,
         push_category,
         push_event,
+        push_user,
+        run_firebase_async,
     )
 except Exception:  # Eğer firebase yoksa no-op fonksiyonlar kullan
     def push_table(*_, **__):
@@ -33,6 +36,22 @@ except Exception:  # Eğer firebase yoksa no-op fonksiyonlar kullan
 
     def push_event(*_, **__):
         pass
+
+    def push_user(*_, **__):
+        pass
+
+    def run_firebase_async(*_, **__):
+        pass
+
+
+def _firebase_sync(action, fn, *args, **kwargs):
+    """Firebase senkron hatalarını logla (sessizce yutma)."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as exc:
+        print(f"[firebase-sync] {action} hatası: {exc}")
+        return None
+
 
 class TableModel:
     """Masa yönetimi"""
@@ -72,25 +91,33 @@ class TableModel:
     
     @staticmethod
     def open_table(table_id):
-        """Masayı aç - status 'open' (ürün eklenince 'occupied' olur)"""
+        """Masayı aç - yalnızca boş masalar (status 'empty')"""
         conn = db.get_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT status FROM tables WHERE id = ?", (table_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+        if row["status"] != "empty":
+            conn.close()
+            return False
+
         cursor.execute("""
-            UPDATE tables 
+            UPDATE tables
             SET status = 'open', opened_at = ?, total_amount = 0.0
-            WHERE id = ?
+            WHERE id = ? AND status = 'empty'
         """, (datetime.now().isoformat(), table_id))
+        updated = cursor.rowcount > 0
         conn.commit()
         conn.close()
+        if not updated:
+            return False
 
-        # Firebase'e masa durumunu gönder (hata durumunda POS etkilenmez)
-        try:
-            table = TableModel.get_table(table_id)
-            if table:
-                push_table(table)
-            push_event("table.opened", {"table_id": table_id})
-        except Exception:
-            pass
+        table = TableModel.get_table(table_id)
+        if table:
+            _firebase_sync("table.opened", push_table, table)
+        _firebase_sync("table.opened.event", push_event, "table.opened", {"table_id": table_id})
         return True
     
     @staticmethod
@@ -102,10 +129,13 @@ class TableModel:
         conn = db.get_connection()
         cursor = conn.cursor()
         
-        # Masa bilgilerini al
         cursor.execute("SELECT * FROM tables WHERE id = ?", (table_id,))
-        table = dict(cursor.fetchone())
-        
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+        table = dict(row)
+
         if table['status'] not in ('occupied', 'open'):
             conn.close()
             return False
@@ -123,7 +153,13 @@ class TableModel:
         if not orders:
             conn.close()
             return False
-        
+
+        sale_total = round(sum(float(o["total_price"]) for o in orders), 2)
+        cursor.execute(
+            "UPDATE tables SET total_amount = ? WHERE id = ?",
+            (sale_total, table_id),
+        )
+
         # Satış kaydı oluştur
         cursor.execute("""
             INSERT INTO completed_sales 
@@ -131,7 +167,7 @@ class TableModel:
             VALUES (?, ?, ?, ?, ?)
         """, (
             table['table_number'],
-            table['total_amount'],
+            sale_total,
             payment_method,
             table['opened_at'],
             datetime.now().isoformat()
@@ -166,42 +202,130 @@ class TableModel:
         conn.commit()
         conn.close()
 
-        # Firebase'e satış ve masa güncellemesi gönder
-        try:
-            # Satış header'ını ve detaylarını tekrar oku
-            conn2 = db.get_connection()
-            cur2 = conn2.cursor()
-            cur2.execute("SELECT * FROM completed_sales WHERE id = ?", (sale_id,))
-            sale_row = cur2.fetchone()
-            sale_header = dict(sale_row) if sale_row else {
-                "id": sale_id,
-                "table_number": table["table_number"],
-                "total_amount": table["total_amount"],
-                "payment_method": payment_method,
-                "opened_at": table["opened_at"],
-                "closed_at": datetime.now().isoformat(),
-                "sale_date": datetime.now().isoformat(),
-            }
-            cur2.execute("SELECT * FROM sale_details WHERE sale_id = ?", (sale_id,))
-            details = [dict(r) for r in cur2.fetchall()]
-            conn2.close()
+        conn2 = db.get_connection()
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT * FROM completed_sales WHERE id = ?", (sale_id,))
+        sale_row = cur2.fetchone()
+        sale_header = dict(sale_row) if sale_row else {
+            "id": sale_id,
+            "table_number": table["table_number"],
+            "total_amount": table["total_amount"],
+            "payment_method": payment_method,
+            "opened_at": table["opened_at"],
+            "closed_at": datetime.now().isoformat(),
+            "sale_date": datetime.now().isoformat(),
+        }
+        cur2.execute("SELECT * FROM sale_details WHERE sale_id = ?", (sale_id,))
+        details = [dict(r) for r in cur2.fetchall()]
+        conn2.close()
 
-            push_sale(sale_header, details)
-
-            # Son masa durumunu da gönder
-            final_table = TableModel.get_table(table_id)
-            if final_table:
-                push_table(final_table)
-            push_event("table.closed", {
-                "table_id": table_id,
-                "sale_id": sale_id,
-                "payment_method": payment_method,
-                "total_amount": table.get("total_amount"),
-            })
-        except Exception:
-            pass
+        _firebase_sync("sale.closed", push_sale, sale_header, details)
+        final_table = TableModel.get_table(table_id)
+        if final_table:
+            _firebase_sync("table.closed", push_table, final_table)
+        _firebase_sync("table.closed.event", push_event, "table.closed", {
+            "table_id": table_id,
+            "sale_id": sale_id,
+            "payment_method": payment_method,
+            "total_amount": table.get("total_amount"),
+        })
         return True
     
+    @staticmethod
+    def update_note(table_id, note):
+        """Masa notunu güncelle"""
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE tables SET note = ? WHERE id = ?",
+            ((note or "").strip(), table_id),
+        )
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return updated
+
+    @staticmethod
+    def transfer_table(source_id, target_id):
+        """Aktif siparişleri başka masaya taşı"""
+        if source_id == target_id:
+            return False, "Aynı masa seçilemez"
+
+        source = TableModel.get_table(source_id)
+        target = TableModel.get_table(target_id)
+        if not source:
+            return False, "Kaynak masa bulunamadı"
+        if not target:
+            return False, "Hedef masa bulunamadı"
+        if source["status"] == "empty":
+            return False, "Kaynak masada sipariş yok"
+        if target["status"] == "empty":
+            TableModel.open_table(target_id)
+            target = TableModel.get_table(target_id)
+
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM active_orders WHERE table_id = ?",
+            (source_id,),
+        )
+        orders = [dict(r) for r in cursor.fetchall()]
+        if not orders:
+            conn.close()
+            return False, "Taşınacak sipariş yok"
+
+        for order in orders:
+            cursor.execute("""
+                SELECT id, quantity FROM active_orders
+                WHERE table_id = ? AND product_id = ?
+            """, (target_id, order["product_id"]))
+            existing = cursor.fetchone()
+            if existing:
+                new_qty = int(existing["quantity"]) + int(order["quantity"])
+                new_total = round(new_qty * float(order["unit_price"]), 2)
+                cursor.execute("""
+                    UPDATE active_orders SET quantity = ?, total_price = ? WHERE id = ?
+                """, (new_qty, new_total, existing["id"]))
+                cursor.execute("DELETE FROM active_orders WHERE id = ?", (order["id"],))
+            else:
+                cursor.execute("""
+                    UPDATE active_orders SET table_id = ? WHERE id = ?
+                """, (target_id, order["id"]))
+
+        cursor.execute("""
+            UPDATE tables
+            SET status = 'empty', opened_at = NULL, total_amount = 0.0
+            WHERE id = ?
+        """, (source_id,))
+        cursor.execute("""
+            UPDATE tables SET status = 'occupied' WHERE id = ?
+        """, (target_id,))
+        conn.commit()
+        conn.close()
+
+        TableModel.update_table_total(target_id)
+        TableModel.update_table_total(source_id)
+
+        try:
+            src_orders = OrderModel.get_table_orders(source_id)
+            tgt_orders = OrderModel.get_table_orders(target_id)
+            run_firebase_async(push_active_orders, source_id, src_orders)
+            run_firebase_async(push_active_orders, target_id, tgt_orders)
+            src_t = TableModel.get_table(source_id)
+            tgt_t = TableModel.get_table(target_id)
+            if src_t:
+                push_table(src_t)
+            if tgt_t:
+                push_table(tgt_t)
+            push_event("table.transferred", {
+                "from_table_id": source_id,
+                "to_table_id": target_id,
+            })
+        except Exception as exc:
+            print(f"[firebase-sync] transfer: {exc}")
+
+        return True, None
+
     @staticmethod
     def update_table_total(table_id):
         """Masa toplam tutarını güncelle"""
@@ -288,20 +412,16 @@ class OrderModel:
         # Masa toplamını güncelle
         TableModel.update_table_total(table_id)
 
-        # Firebase: aktif siparişler ve masa toplamını gönder
-        try:
-            orders = OrderModel.get_table_orders(table_id)
-            push_active_orders(table_id, orders)
-            table = TableModel.get_table(table_id)
-            if table:
-                push_table(table)
-            push_event("order.added", {
-                "table_id": table_id,
-                "product_id": product_id,
-                "quantity": int(quantity),
-            })
-        except Exception:
-            pass
+        orders = OrderModel.get_table_orders(table_id)
+        table = TableModel.get_table(table_id)
+        if table:
+            _firebase_sync("order.added.table", push_table, table)
+        run_firebase_async(push_active_orders, table_id, orders)
+        _firebase_sync("order.added.event", push_event, "order.added", {
+            "table_id": table_id,
+            "product_id": product_id,
+            "quantity": int(quantity),
+        })
         return True
     
     @staticmethod
@@ -335,20 +455,16 @@ class OrderModel:
         # Masa toplamını güncelle
         TableModel.update_table_total(table_id)
 
-        # Firebase senkron
-        try:
-            orders = OrderModel.get_table_orders(table_id)
-            push_active_orders(table_id, orders)
-            table = TableModel.get_table(table_id)
-            if table:
-                push_table(table)
-            push_event("order.quantity_updated", {
-                "order_id": order_id,
-                "table_id": table_id,
-                "new_quantity": int(new_quantity),
-            })
-        except Exception:
-            pass
+        orders = OrderModel.get_table_orders(table_id)
+        table = TableModel.get_table(table_id)
+        if table:
+            _firebase_sync("order.qty.table", push_table, table)
+        run_firebase_async(push_active_orders, table_id, orders)
+        _firebase_sync("order.qty.event", push_event, "order.quantity_updated", {
+            "order_id": order_id,
+            "table_id": table_id,
+            "new_quantity": int(new_quantity),
+        })
         return True
     
     @staticmethod
@@ -368,22 +484,33 @@ class OrderModel:
         conn.commit()
         conn.close()
         
-        # Masa toplamını güncelle
         TableModel.update_table_total(table_id)
 
-        # Firebase senkron
-        try:
-            orders = OrderModel.get_table_orders(table_id)
-            push_active_orders(table_id, orders)
-            table = TableModel.get_table(table_id)
-            if table:
-                push_table(table)
-            push_event("order.removed", {
-                "order_id": order_id,
-                "table_id": table_id,
-            })
-        except Exception:
-            pass
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM active_orders WHERE table_id = ?",
+            (table_id,),
+        )
+        remaining = cursor.fetchone()["cnt"]
+        if remaining == 0:
+            cursor.execute("""
+                UPDATE tables
+                SET status = 'open', total_amount = 0.0
+                WHERE id = ?
+            """, (table_id,))
+        conn.commit()
+        conn.close()
+
+        orders = OrderModel.get_table_orders(table_id)
+        table = TableModel.get_table(table_id)
+        if table:
+            _firebase_sync("order.removed.table", push_table, table)
+        run_firebase_async(push_active_orders, table_id, orders)
+        _firebase_sync("order.removed.event", push_event, "order.removed", {
+            "order_id": order_id,
+            "table_id": table_id,
+        })
         return True
 
 
@@ -429,19 +556,17 @@ class MenuModel:
         product_id = cursor.lastrowid
         conn.close()
 
-        # Firebase'e ürün güncellemesi gönder
-        try:
-            product = {
-                "id": product_id,
-                "name": name,
-                "price": price,
-                "category_id": category_id,
-                "is_active": 1,
-            }
-            push_product(product)
-            push_event("product.added", {"product_id": product_id, "name": name})
-        except Exception:
-            pass
+        product = {
+            "id": product_id,
+            "name": name,
+            "price": price,
+            "category_id": category_id,
+            "is_active": 1,
+        }
+        _firebase_sync("product.added", push_product, product)
+        _firebase_sync("product.added.event", push_event, "product.added", {
+            "product_id": product_id, "name": name
+        })
         return product_id
     
     @staticmethod
@@ -457,19 +582,17 @@ class MenuModel:
         conn.commit()
         conn.close()
 
-        # Firebase'e ürün güncellemesi gönder
-        try:
-            product = {
-                "id": product_id,
-                "name": name,
-                "price": price,
-                "category_id": category_id,
-                "is_active": 1,
-            }
-            push_product(product)
-            push_event("product.updated", {"product_id": product_id, "name": name})
-        except Exception:
-            pass
+        product = {
+            "id": product_id,
+            "name": name,
+            "price": price,
+            "category_id": category_id,
+            "is_active": 1,
+        }
+        _firebase_sync("product.updated", push_product, product)
+        _firebase_sync("product.updated.event", push_event, "product.updated", {
+            "product_id": product_id, "name": name
+        })
         return True
     
     @staticmethod
@@ -483,16 +606,11 @@ class MenuModel:
         conn.commit()
         conn.close()
 
-        # Firebase'e pasif ürün bilgisi gönder
-        try:
-            product = {
-                "id": product_id,
-                "is_active": 0,
-            }
-            push_product(product)
-            push_event("product.deleted", {"product_id": product_id})
-        except Exception:
-            pass
+        product = {"id": product_id, "is_active": 0}
+        _firebase_sync("product.deleted", push_product, product)
+        _firebase_sync("product.deleted.event", push_event, "product.deleted", {
+            "product_id": product_id
+        })
         return True
     
     @staticmethod
@@ -505,15 +623,37 @@ class MenuModel:
             conn.commit()
             category_id = cursor.lastrowid
             conn.close()
-            try:
-                push_category({"id": category_id, "name": name})
-                push_event("category.added", {"category_id": category_id, "name": name})
-            except Exception:
-                pass
+            _firebase_sync("category.added", push_category, {"id": category_id, "name": name})
+            _firebase_sync("category.added.event", push_event, "category.added", {
+                "category_id": category_id, "name": name
+            })
             return category_id
-        except:
+        except sqlite3.IntegrityError:
+            conn.close()
+            raise ValueError("Bu isimde kategori zaten var")
+        except Exception:
             conn.close()
             return None
+
+    @staticmethod
+    def delete_category(category_id):
+        """Kategori sil (ürün yoksa)"""
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM products WHERE category_id = ? AND is_active = 1",
+            (category_id,),
+        )
+        if cursor.fetchone()["cnt"] > 0:
+            conn.close()
+            raise ValueError("Bu kategoride ürün var. Önce ürünleri silin veya taşıyın.")
+        cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        if deleted:
+            push_event("category.deleted", {"category_id": category_id})
+        return deleted
 
 
 class ReportModel:
@@ -595,3 +735,59 @@ class ReportModel:
         sales = [dict(row) for row in cursor.fetchall()]
         conn.close()
         return sales
+
+    @staticmethod
+    def get_dashboard():
+        """Canlı özet: bugünkü ciro, masa durumu, en çok satanlar."""
+        today = datetime.now().date().isoformat()
+        conn = db.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total_sales,
+                COALESCE(SUM(total_amount), 0) as total_revenue,
+                COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total_amount ELSE 0 END), 0) as cash_total,
+                COALESCE(SUM(CASE WHEN payment_method = 'card' THEN total_amount ELSE 0 END), 0) as card_total
+            FROM completed_sales
+            WHERE DATE(sale_date) = ?
+        """, (today,))
+        sales_today = dict(cursor.fetchone())
+
+        cursor.execute("""
+            SELECT status, COUNT(*) as cnt FROM tables GROUP BY status
+        """)
+        status_rows = {r["status"]: r["cnt"] for r in cursor.fetchall()}
+        tables_summary = {
+            "empty": status_rows.get("empty", 0),
+            "open": status_rows.get("open", 0),
+            "occupied": status_rows.get("occupied", 0),
+            "active": status_rows.get("open", 0) + status_rows.get("occupied", 0),
+        }
+
+        cursor.execute("""
+            SELECT product_name, SUM(quantity) as qty, SUM(total_price) as revenue
+            FROM sale_details sd
+            JOIN completed_sales cs ON sd.sale_id = cs.id
+            WHERE DATE(cs.sale_date) = ?
+            GROUP BY product_name
+            ORDER BY revenue DESC
+            LIMIT 5
+        """, (today,))
+        top_products = [dict(r) for r in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(total_amount), 0) as open_revenue
+            FROM tables
+            WHERE status IN ('open', 'occupied')
+        """)
+        open_revenue = dict(cursor.fetchone()).get("open_revenue", 0) or 0
+
+        conn.close()
+        return {
+            "date": today,
+            "sales_today": sales_today,
+            "tables": tables_summary,
+            "top_products": top_products,
+            "open_tables_revenue": round(float(open_revenue), 2),
+        }

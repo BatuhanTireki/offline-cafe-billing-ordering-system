@@ -37,6 +37,10 @@
       {
         "from": "backend/dist/cafe_backend.exe",
         "to": "backend/cafe_backend.exe"
+      },
+      {
+        "from": "backend/firebase-service-account.json",
+        "to": "backend/firebase-service-account.json"
       }
     ]
   }

@@ -28,7 +28,7 @@ Notlar:
 ## Giris
 
 Varsayilan hesaplar:
-- admin / admin123
+- admin / admin
 - garson / garson123
 
 Rol yetkileri:

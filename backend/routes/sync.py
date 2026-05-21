@@ -4,7 +4,7 @@ Firebase senkron endpoint'leri
 from flask import Blueprint, jsonify
 
 from database import db
-from firebase_client import full_sync_from_sqlite, get_sync_status
+from firebase_client import full_sync_from_sqlite, sync_core_to_firestore, get_sync_status
 from auth import require_auth, require_role
 
 sync_bp = Blueprint("sync", __name__)
@@ -24,6 +24,16 @@ def firebase_status():
 def firebase_full_sync():
     """SQLite -> Firestore full sync tetikler."""
     result = full_sync_from_sqlite(db.get_connection)
+    status = 200 if result.get("success") else 500
+    return jsonify(result), status
+
+
+@sync_bp.route("/firebase/core", methods=["POST"])
+@require_auth
+@require_role("admin")
+def firebase_core_sync():
+    """Ürünler, masalar, kategoriler ve satışları Firestore'a yazar."""
+    result = sync_core_to_firestore(db.get_connection)
     status = 200 if result.get("success") else 500
     return jsonify(result), status
 

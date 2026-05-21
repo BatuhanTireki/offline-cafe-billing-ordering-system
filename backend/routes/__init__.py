@@ -11,6 +11,8 @@ from routes.reports import reports_bp
 from routes.sales import sales_bp
 from routes.sync import sync_bp
 from routes.auth_routes import auth_bp
+from routes.settings import settings_bp
+from routes.backup import backup_bp
 
 def register_routes(app):
     """Tüm route'ları uygulamaya kaydet"""
@@ -21,3 +23,5 @@ def register_routes(app):
     app.register_blueprint(sales_bp, url_prefix='/api/sales')
     app.register_blueprint(sync_bp, url_prefix='/api/sync')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(settings_bp, url_prefix='/api/settings')
+    app.register_blueprint(backup_bp, url_prefix='/api/backup')
