@@ -1,3 +1,202 @@
+# Kafe POS  
+Cafe receipt and table management system.
+
+This project combines an Electron-based desktop interface with a Flask REST API backend. SQLite is used as the primary data source. Firebase Firestore synchronization can also be enabled when needed.
+
+## What Does It Offer?
+- Fast operational workflow for 40 tables (empty/open/occupied)
+- Table-based order and receipt management
+- Add, remove, and update product quantities
+- Close tables with cash/card payments
+- Daily sales reports and sales history
+- Role-based authorization (admin/waiter)
+- Optional Firebase synchronization layer
+
+## Technical Architecture
+The Electron renderer sends requests to the Flask API through localhost.  
+Flask executes business logic in the models layer.  
+Persistent data is stored in SQLite.  
+If Firebase is enabled, changes are also synchronized with Firestore.
+
+### Technology Stack
+- **Frontend:** Electron, HTML, CSS, JavaScript
+- **Backend:** Python, Flask, Flask-CORS
+- **Database:** SQLite
+- **Optional Cloud Layer:** Firebase Admin SDK
+- **Packaging:** PyInstaller + electron-builder
+
+## Roles and Permissions
+
+### waiter
+- Open tables
+- Add/update/delete orders
+- View table statuses
+
+### admin
+- All waiter permissions
+- Menu management
+- Reports and sales history
+- Table closing/payment processing
+- Firebase sync endpoints
+
+### Default Users
+- `admin / admin`
+- `garson / garson123`
+
+## Screens
+- **login:** login screen
+- **index:** table grid screen
+- **table:** table details/order screen
+- **menu-management:** product and category management (admin)
+- **reports:** daily reporting (admin)
+- **sales-history:** sales history and details by date range (admin)
+
+## API Summary
+
+### Auth
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+
+### Tables
+- `GET /api/tables/`
+- `GET /api/tables/:id`
+- `POST /api/tables/:id/open`
+- `POST /api/tables/:id/close` (admin)
+
+### Menu
+- `GET /api/menu/categories`
+- `POST /api/menu/categories` (admin)
+- `GET /api/menu/products`
+- `POST /api/menu/products` (admin)
+- `PUT /api/menu/products/:id` (admin)
+- `DELETE /api/menu/products/:id` (admin)
+
+### Orders
+- `GET /api/orders/table/:id`
+- `POST /api/orders/add`
+- `PUT /api/orders/:id/quantity`
+- `DELETE /api/orders/:id`
+
+### Reports
+- `GET /api/reports/daily?date=YYYY-MM-DD` (admin)
+- `GET /api/reports/range?start_date=...&end_date=...` (admin)
+
+### Sales
+- `GET /api/sales/history?start_date=...&end_date=...` (admin)
+- `GET /api/sales/:id/details` (admin)
+
+### Firebase Sync
+- `GET /api/sync/firebase/status` (admin)
+- `POST /api/sync/firebase/full` (admin)
+
+### Health Endpoints
+- `/`
+- `/health`
+- `/firebase-health`
+
+## Installation
+
+### Requirements
+- Windows 10/11
+- Python 3.8+
+- Node.js 16+
+
+## Development Environment
+
+### Install backend dependencies
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### Install frontend dependencies
+```bash
+cd ../frontend
+npm install
+```
+
+### Start the application
+```bash
+npm start
+```
+
+### Alternative single-command startup
+```bash
+run-dev.bat
+```
+
+## Build and Distribution
+
+### One-step build
+```bash
+build.bat
+```
+
+### Expected output
+```text
+frontend/dist/Kafe POS Setup.exe
+```
+
+For manual build steps, check the `BUILD_INSTRUCTIONS.md` file.
+
+## Firebase (Optional)
+
+If Firebase is disabled, the application continues to work fully offline.
+
+### Supported Environment Variables
+```env
+FIREBASE_ENABLED=true|false
+FIREBASE_CREDENTIALS_PATH=path-to-service-account-json
+FIREBASE_BRANCH_ID=default
+FIREBASE_FULL_SYNC_ON_START=true|false
+```
+
+`run-dev.bat` automatically sets these variables in the development environment.
+
+## Database Notes
+
+### Main Tables
+- `tables`
+- `categories`
+- `products`
+- `active_orders`
+- `completed_sales`
+- `sale_details`
+- `users`
+
+### On First Launch
+- Database tables are created
+- 40 tables are generated
+- Sample menu data is loaded
+- Default users are added
+
+## Troubleshooting
+
+### If the backend does not start
+- Check backend logs
+- If there is a port conflict, the backend automatically finds an alternative port
+
+### If login is repeatedly requested
+- Session structure is memory-based
+- You must log in again after a backend restart
+
+### If Firebase cannot connect
+- Check the `FIREBASE_CREDENTIALS_PATH` value
+- Verify that the service account file exists
+- Check the `FIREBASE_ENABLED` value
+
+## Documentation
+- `QUICKSTART.md`
+- `PROJECT_STRUCTURE.md`
+- `SETUP_GUIDE.md`
+- `BUILD_INSTRUCTIONS.md`
+- `CHANGELOG.md`
+
+## License
+MIT
+
+
 # Kafe POS
 
 Cafe adisyon ve masa yonetim sistemi.
@@ -220,200 +419,3 @@ Firebase baglanmiyorsa:
 
 MIT
 
-# Kafe POS  
-Cafe receipt and table management system.
-
-This project combines an Electron-based desktop interface with a Flask REST API backend. SQLite is used as the primary data source. Firebase Firestore synchronization can also be enabled when needed.
-
-## What Does It Offer?
-- Fast operational workflow for 40 tables (empty/open/occupied)
-- Table-based order and receipt management
-- Add, remove, and update product quantities
-- Close tables with cash/card payments
-- Daily sales reports and sales history
-- Role-based authorization (admin/waiter)
-- Optional Firebase synchronization layer
-
-## Technical Architecture
-The Electron renderer sends requests to the Flask API through localhost.  
-Flask executes business logic in the models layer.  
-Persistent data is stored in SQLite.  
-If Firebase is enabled, changes are also synchronized with Firestore.
-
-### Technology Stack
-- **Frontend:** Electron, HTML, CSS, JavaScript
-- **Backend:** Python, Flask, Flask-CORS
-- **Database:** SQLite
-- **Optional Cloud Layer:** Firebase Admin SDK
-- **Packaging:** PyInstaller + electron-builder
-
-## Roles and Permissions
-
-### waiter
-- Open tables
-- Add/update/delete orders
-- View table statuses
-
-### admin
-- All waiter permissions
-- Menu management
-- Reports and sales history
-- Table closing/payment processing
-- Firebase sync endpoints
-
-### Default Users
-- `admin / admin`
-- `garson / garson123`
-
-## Screens
-- **login:** login screen
-- **index:** table grid screen
-- **table:** table details/order screen
-- **menu-management:** product and category management (admin)
-- **reports:** daily reporting (admin)
-- **sales-history:** sales history and details by date range (admin)
-
-## API Summary
-
-### Auth
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/logout`
-
-### Tables
-- `GET /api/tables/`
-- `GET /api/tables/:id`
-- `POST /api/tables/:id/open`
-- `POST /api/tables/:id/close` (admin)
-
-### Menu
-- `GET /api/menu/categories`
-- `POST /api/menu/categories` (admin)
-- `GET /api/menu/products`
-- `POST /api/menu/products` (admin)
-- `PUT /api/menu/products/:id` (admin)
-- `DELETE /api/menu/products/:id` (admin)
-
-### Orders
-- `GET /api/orders/table/:id`
-- `POST /api/orders/add`
-- `PUT /api/orders/:id/quantity`
-- `DELETE /api/orders/:id`
-
-### Reports
-- `GET /api/reports/daily?date=YYYY-MM-DD` (admin)
-- `GET /api/reports/range?start_date=...&end_date=...` (admin)
-
-### Sales
-- `GET /api/sales/history?start_date=...&end_date=...` (admin)
-- `GET /api/sales/:id/details` (admin)
-
-### Firebase Sync
-- `GET /api/sync/firebase/status` (admin)
-- `POST /api/sync/firebase/full` (admin)
-
-### Health Endpoints
-- `/`
-- `/health`
-- `/firebase-health`
-
-## Installation
-
-### Requirements
-- Windows 10/11
-- Python 3.8+
-- Node.js 16+
-
-## Development Environment
-
-### Install backend dependencies
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-### Install frontend dependencies
-```bash
-cd ../frontend
-npm install
-```
-
-### Start the application
-```bash
-npm start
-```
-
-### Alternative single-command startup
-```bash
-run-dev.bat
-```
-
-## Build and Distribution
-
-### One-step build
-```bash
-build.bat
-```
-
-### Expected output
-```text
-frontend/dist/Kafe POS Setup.exe
-```
-
-For manual build steps, check the `BUILD_INSTRUCTIONS.md` file.
-
-## Firebase (Optional)
-
-If Firebase is disabled, the application continues to work fully offline.
-
-### Supported Environment Variables
-```env
-FIREBASE_ENABLED=true|false
-FIREBASE_CREDENTIALS_PATH=path-to-service-account-json
-FIREBASE_BRANCH_ID=default
-FIREBASE_FULL_SYNC_ON_START=true|false
-```
-
-`run-dev.bat` automatically sets these variables in the development environment.
-
-## Database Notes
-
-### Main Tables
-- `tables`
-- `categories`
-- `products`
-- `active_orders`
-- `completed_sales`
-- `sale_details`
-- `users`
-
-### On First Launch
-- Database tables are created
-- 40 tables are generated
-- Sample menu data is loaded
-- Default users are added
-
-## Troubleshooting
-
-### If the backend does not start
-- Check backend logs
-- If there is a port conflict, the backend automatically finds an alternative port
-
-### If login is repeatedly requested
-- Session structure is memory-based
-- You must log in again after a backend restart
-
-### If Firebase cannot connect
-- Check the `FIREBASE_CREDENTIALS_PATH` value
-- Verify that the service account file exists
-- Check the `FIREBASE_ENABLED` value
-
-## Documentation
-- `QUICKSTART.md`
-- `PROJECT_STRUCTURE.md`
-- `SETUP_GUIDE.md`
-- `BUILD_INSTRUCTIONS.md`
-- `CHANGELOG.md`
-
-## License
-MIT
